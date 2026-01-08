@@ -15,3 +15,7 @@ class Area:
         current_occupancy = sum(c for _, c in self.occupants)
         if current_occupancy + count <= self.capacity:
             self.occupants[player] = self.occupants.get(player, 0) + count
+        
+    def is_occupied(self) -> bool:
+        """Check if the location is occupied."""
+        return self.occupants is not None

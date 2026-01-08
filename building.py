@@ -1,14 +1,54 @@
-from matplotlib.pylab import Any
+from typing import Dict, Optional
+from abc import ABC, abstractmethod
 
+class Building(ABC):
+    def __init__(self) -> None:
+        self.occupants: Optional[int] = None
 
-class Building:
-    def __init__(self, resources: list) -> None:
-        self.resources = resources
-        self.capacity = 1
-        self.occupants = None  # Dictionary of (player, count)
-    
-    def place(self, player: int):
-        """Place `count` workers for `player` in this area.
-
+    def place(self, player: int) -> None:
+        """
+        Place  workers for `player` in this area.
         """
         self.occupants = player
+    
+    def is_occupied(self) -> bool:
+        """Check if the location is occupied."""
+        return self.occupants is not None
+    
+    @abstractmethod
+    def is_able_to_buy(self, player_resources: Dict[str, int]) -> bool:
+        """Check if a player has enough resources to buy this building.
+
+        """
+
+class CertainBuilding(Building):
+    def __init__(self, resources: Dict[str, int]) -> None:
+        super().__init__()
+        self.resources = resources
+
+    def is_able_to_buy(self, player_resources: Dict[str, int]) -> bool:
+        """Check if a player has enough resources to buy this building.
+
+        """
+        for resource, value in self.resources.items():
+            if player_resources.get(resource, 0) < value:
+                return False
+        return True
+
+class FlexBuilding(Building):
+    def __init__(self, resources_require_count: int, variety: Optional[int] = None) -> None:
+        super().__init__()
+        self.resources_require_count = resources_require_count
+        self.variety = variety
+
+    def is_able_to_buy(self, player_resources: Dict[str, int]) -> bool:
+        """Check if a player has enough resources to buy this building.
+
+        """
+        if self.resources_require_count == 7:
+            return any(v > 0 for v in player_resources.values())
+        # Get the resource counts, sorted in descending order
+        counts = sorted(player_resources.values(), reverse=True)
+        # Sum the top 'variety' counts (or all if variety is None or more than available)
+        total = sum(counts[:self.variety])
+        return (total >= self.resources_require_count and all(v>0 for v in counts[:self.variety]))
