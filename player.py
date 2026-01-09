@@ -1,10 +1,18 @@
+
+from area import Area
+from player import Player
+from building import CertainBuilding, FlexBuilding, Building
+from card import Card
+from utility import Utility
+
 class Player:
-    def __init__(self, food: int, workers: int) -> None:
+    def __init__(self, food: int, workers: int, AI: bool = False) -> None:
         self.wheat = 0
         self.total_workers = workers
         self.available_workers = workers
         self.vp = 0  # Victory points
-        self. resources = {
+        self.AI = AI
+        self.resources = {
             2: food,  # Food
             3: 0,  # Wood
             4: 0,  # Stone
@@ -12,10 +20,10 @@ class Player:
             6: 0,  # Gold
         }
         self.tools = [
-            0, True,
-            0, True,
-            0, True,
-            0, True
+            [0, True],
+            [0, True],
+            [0, True],
+            [0, True]
         ]
         self.one_use_tools: list[int] = []
         self.card_effects: list[int] = []
@@ -25,25 +33,44 @@ class Player:
         tools = self.decide_to_use_tool(dice_roll, resource_type)
         self.resources[resource_type] += resource_type//(dice_roll+tools)
 
-    def buy_card(self, card_cost: int) -> None:
+    def decide_to_buy(self, location, state) -> None:
         """Acquire a new card for the player."""
-        pass
+        if self.AI is False:
+            input("Decide to buy (y/n): ")
+            if input().lower() == 'y':
+                return True
+            return False
+        else:
+            pass
 
     def decide_to_use_tool(self, dice_sum: int, resource_type: int) -> int:
-        """Decide whether to use a tool when gathering resources.
-
-        Placeholder for decision logic.
-        """
-        pass
+        """Decide whether to use a tool when gathering resources."""
+        used_tool = 0
+        if self.AI is False:
+            print(f"Decide to use tool for dice sum {dice_sum} and resource type {resource_type} (y/n): ")
+            if input().lower() == 'y':
+                for i in range(4):
+                    tool_value = self.tools[i][0]
+                    tool_usage = self.tools[i][1]
+                    print(f"Do you want to use tool with value {tool_value} (y/n): ")
+                    if input().lower() == 'y' and tool_usage is True:
+                        self.tools[i][1] = False  # Mark tool as used
+                        used_tool += tool_value
+                for tool in self.one_use_tools:
+                    input_t = input(f"Do you want to use a one time tool with value {tool} (y/n): ")
+                    if input_t.lower() == 'y':
+                        used_tool += tool
+                        tool = None
+        else:
+            pass
 
     def get_tool(self) -> None:
         """Acquire a new tool for the player."""
-        min_tool = self.tools[0,0]
-        for i in range(4):
-            if self.tools[i,0] < min_tool:
-                self.tools[i,0] += 1
-                return
-        self.tools[0,0] += 1
+        min_tool = self.tools[0][0]
+        for i in range(1,4):
+            if self.tools[i][0] < self.tools[min_tool][0]:
+                min_tool = i
+        self.tools[min_tool][0] += 1
         self.check_vp()
 
     def get_one_use_tool(self, tool_value: int) -> None:
@@ -71,9 +98,6 @@ class Player:
 
     def feed(self) -> int:
         """Feed the player and return score change based on food shortage."""
-        if self.resources[2] - self.wheat >= self.total_workers:
-            self.resources[2] -= max(0, self.total_workers - self.wheat)
-            return 0
-        else:
-            self.resources[2] = 0
-            return -10  # penalty for not feeding
+        if self.resources[2] - self.wheat < self.total_workers:
+            self.vp -=10  # penalty for not feeding
+        self.resources[2] = max(0, self.resources[2] - self.total_workers + self.wheat)

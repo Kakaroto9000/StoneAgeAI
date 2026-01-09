@@ -1,6 +1,4 @@
-from abc import ABC, abstractmethod
-from typing import Optional, Dict, Any, List
-import random
+from typing import Dict, Any
 
 # Number table for card types
 CARD_TYPE_NUMBERS = {
@@ -17,20 +15,21 @@ CARD_TYPE_NUMBERS = {
 }
 
 class Card:
-    def __init__(self, name: str, cost: int, card_type: str, data: Dict[str, Any], painting: int = None, multiplier: int = None) -> None:
-        self.name = name
+    def __init__(self, cost: int, card_type: str, data: list[int] = None, painting: int = None, multiplier: int = None) -> None:
         self.cost = cost
         self.card_type = card_type  # e.g., "food", "resource", "dice_roll", "victory_points", etc.
         self.data = data  # Dictionary with card-specific data
         self.painting = painting
         self.multiplier = multiplier
         self.occupant: int | None = None
-        self.used = False  # For cards that can be used later
     
     @property
     def card_type_num(self) -> int:
         """Get the numeric representation of the card type."""
         return CARD_TYPE_NUMBERS.get(self.card_type, 0)  # 0 for unknown types
+    
+    def clear(self) -> None:
+        self.occupant = None
 
     def place(self, player: int) -> None:
         """Place `count` workers for `player` in this area."""
@@ -54,4 +53,4 @@ class Card:
     
     def is_occupied(self) -> bool:
         """Check if the location is occupied."""
-        return self.occupants is not None
+        return self.occupant is not None

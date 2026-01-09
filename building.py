@@ -21,6 +21,10 @@ class Building(ABC):
 
         """
 
+    def clear(self) -> None:
+        """Clear the occupant from the building."""
+        self.occupants = None
+
 class CertainBuilding(Building):
     def __init__(self, resources: Dict[str, int]) -> None:
         super().__init__()

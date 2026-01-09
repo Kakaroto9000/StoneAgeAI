@@ -19,3 +19,7 @@ class Area:
     def is_occupied(self) -> bool:
         """Check if the location is occupied."""
         return self.occupants is not None
+    
+    def clear(self) -> None:
+        """Clear all occupants from the area."""
+        self.occupants.clear()

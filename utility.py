@@ -13,3 +13,7 @@ class Utility:
     def is_occupied(self) -> bool:
         """Check if the location is occupied."""
         return self.occupants is not None
+    
+    def clear(self) -> None:
+        """Clear the occupant from the utility."""
+        self.occupants = None
