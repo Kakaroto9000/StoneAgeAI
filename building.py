@@ -1,36 +1,23 @@
 from typing import Dict, Optional
 from abc import ABC, abstractmethod
+from area import Area
 
-class Building(ABC):
+class Building(Area):
     def __init__(self) -> None:
-        self.occupants: Optional[int] = None
-
-    def place(self, player: int) -> None:
-        """
-        Place  workers for `player` in this area.
-        """
-        self.occupants = player
-    
-    def is_occupied(self) -> bool:
-        """Check if the location is occupied."""
-        return self.occupants is not None
+        super.__init__(1)
     
     @abstractmethod
-    def is_able_to_buy(self, player_resources: Dict[str, int]) -> bool:
+    def is_able_to_buy(self, player_resources: Dict[int, int]) -> bool:
         """Check if a player has enough resources to buy this building.
 
         """
 
-    def clear(self) -> None:
-        """Clear the occupant from the building."""
-        self.occupants = None
-
 class CertainBuilding(Building):
-    def __init__(self, resources: Dict[str, int]) -> None:
+    def __init__(self, resources: Dict[int, int]) -> None:
         super().__init__()
         self.resources = resources
 
-    def is_able_to_buy(self, player_resources: Dict[str, int]) -> bool:
+    def is_able_to_buy(self, player_resources: Dict[int, int]) -> bool:
         """Check if a player has enough resources to buy this building.
 
         """
@@ -45,7 +32,7 @@ class FlexBuilding(Building):
         self.resources_require_count = resources_require_count
         self.variety = variety
 
-    def is_able_to_buy(self, player_resources: Dict[str, int]) -> bool:
+    def is_able_to_buy(self, player_resources: Dict[int, int]) -> bool:
         """Check if a player has enough resources to buy this building.
 
         """

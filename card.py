@@ -1,5 +1,5 @@
 from typing import Dict, Any
-
+from area import Area
 # Number table for card types
 CARD_TYPE_NUMBERS = {
     "food": 1,
@@ -14,26 +14,19 @@ CARD_TYPE_NUMBERS = {
     "any_2_resources": 10
 }
 
-class Card:
+class Card(Area):
     def __init__(self, cost: int, card_type: str, data: list[int] = None, painting: int = None, multiplier: int = None) -> None:
+        super.__init__(1)
         self.cost = cost
         self.card_type = card_type  # e.g., "food", "resource", "dice_roll", "victory_points", etc.
         self.data = data  # Dictionary with card-specific data
         self.painting = painting
         self.multiplier = multiplier
-        self.occupant: int | None = None
     
     @property
     def card_type_num(self) -> int:
         """Get the numeric representation of the card type."""
         return CARD_TYPE_NUMBERS.get(self.card_type, 0)  # 0 for unknown types
-    
-    def clear(self) -> None:
-        self.occupant = None
-
-    def place(self, player: int) -> None:
-        """Place `count` workers for `player` in this area."""
-        self.occupant = player
 
     def immediate_effect(self) -> Dict[str, Any]:
         """Return a description of the card's immediate effect."""
@@ -51,6 +44,3 @@ class Card:
             return self.multiplier if self.multiplier else self.painting
         return 0
     
-    def is_occupied(self) -> bool:
-        """Check if the location is occupied."""
-        return self.occupant is not None
