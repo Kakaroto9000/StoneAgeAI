@@ -1,4 +1,4 @@
-from matplotlib.pylab import Any
+from typing import Any
 
 class Area():
     def __init__(self, capacity: int):
@@ -26,11 +26,14 @@ class Area():
         if current_occupancy+ try_to_place <= self.capacity:
             return True
         return False
+    
+    def avaliable_space(self) -> int:
+        return self.capacity - sum(c for _, c in self.occupants)
 
 class Gathering(Area):
     def __init__(self,capacity: int, resource_type: str) -> None:
         self.resource_type = resource_type
-        super.__init__(capacity)
+        super().__init__(capacity)
     
     
 

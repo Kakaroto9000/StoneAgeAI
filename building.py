@@ -4,7 +4,7 @@ from area import Area
 
 class Building(Area):
     def __init__(self) -> None:
-        super.__init__(1)
+        super().__init__(1)
     
     @abstractmethod
     def is_able_to_buy(self, player_resources: Dict[int, int]) -> bool:

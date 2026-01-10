@@ -15,8 +15,8 @@ CARD_TYPE_NUMBERS = {
 }
 
 class Card(Area):
-    def __init__(self, cost: int, card_type: str, data: list[int] = None, painting: int = None, multiplier: int = None) -> None:
-        super.__init__(1)
+    def __init__(self, card_type: str, cost: int, data: list[int] = None, painting: int = None, multiplier: int = None) -> None:
+        super().__init__(1)
         self.cost = cost
         self.card_type = card_type  # e.g., "food", "resource", "dice_roll", "victory_points", etc.
         self.data = data  # Dictionary with card-specific data
@@ -31,12 +31,13 @@ class Card(Area):
     def immediate_effect(self) -> Dict[str, Any]:
         """Return a description of the card's immediate effect."""
         if self.card_type == "resource":
-            return {"type": "add_resources", "resources": self.data.get("resources", 2), "ammount": self.data.get("amount", 1)}
+            return {"resources": self.data.get("resources", 2), "ammount": self.data.get("amount", 1)}
         elif self.card_type == "resources_with_dice":
-            return {"type": "resources_with_dice", "resource_type": self.data.get("resource_type", 2),}
+            return {"resource_type": self.data.get("resource_type", 2),}
         elif self.card_type == "one_use_tool":
-            return {"type": "one_use_tool", "tool_value": self.data.get("tool_value", 0)}
-        return {"type": self.card_type}
+            return {"tool_value": self.data.get("tool_value", 0)}
+        elif self.card_type == "gain_vp":
+            return {"gain_vp": self.data.get("gain_vp", 3)}
 
     def end_game_effect(self) -> int:
         """Calculate the end-game effect for scoring."""

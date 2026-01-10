@@ -1,12 +1,8 @@
 
-from area import Area
-from player import Player
-from building import CertainBuilding, FlexBuilding, Building
 from card import Card
-from utility import Utility
 
 class Player:
-    def __init__(self, food: int, workers: int, AI: bool = False) -> None:
+    def __init__(self, food: int = 10, workers: int = 5, AI: bool = False) -> None:
         self.wheat = 0
         self.total_workers = workers
         self.available_workers = workers
@@ -28,16 +24,28 @@ class Player:
         self.one_use_tools: list[int] = []
         self.card_effects: list[int] = []
 
-    def get_resource(self, resource_type: int, dice_roll: int) -> None:
+    def decide_action(self, possible_actions):
+        if self.AI is False:
+            action = input(f"{possible_actions}")
+            amount = input(f"{possible_actions}")
+            print(f"Player action chosen: {action}, amount: {amount}")
+            return action, amount
+        else:
+            pass
+
+    def get_resource_with_die(self, resource_type: int, dice_roll: int) -> None:
         """Add `amount` of `resource_type` to the player's resources."""
         tools = self.decide_to_use_tool(dice_roll, resource_type)
-        self.resources[resource_type] += resource_type//(dice_roll+tools)
+        gained = resource_type // (dice_roll + tools)
+        self.resources[resource_type] += gained
+        print(f"Gained {gained} of resource {resource_type} (dice {dice_roll}, tools {tools})")
 
     def decide_to_buy(self, location, state) -> None:
         """Acquire a new card for the player."""
         if self.AI is False:
-            input("Decide to buy (y/n): ")
-            if input().lower() == 'y':
+            ans = input("Decide to buy (y/n): ")
+            print(f"Player decision to buy: {ans}")
+            if ans.lower() == 'y':
                 return True
             return False
         else:
@@ -63,6 +71,39 @@ class Player:
                         tool = None
         else:
             pass
+        print(f"Total tool value used: {used_tool}")
+        return used_tool
+
+    def choose_resources(self, resource_amount: int):
+        if self.AI is False:
+            print(f"Decide which resource to get in amount of {resource_amount} 2-food 3-wood 4-clay 5-stone 6-gold: ")
+            choice = int(input())
+            print(f"Player chose resource: {choice} (amount {resource_amount})")
+            return choice
+        else:
+            pass
+
+    def choose_reward_and_apply(self, dice_rolls: list[int]):
+        if self.AI is False:
+            print(f"avaliable are {dice_rolls} Decide which resource to get 1-wood 2-clay 3-stone 4-gold 5-tool 6-wheat: ")
+            choice = int(input())
+            print(f"Player chose reward: {choice} from {dice_rolls}")
+            return choice
+        else:
+            pass
+
+    def get_reward(self, reward: int):
+        print(f"Applying reward {reward}")
+        if 1<=reward<=4:
+            self.get_resources(reward)
+        elif reward == 5:
+            self.get_tool()
+        else:
+            self.get_wheat()
+
+    def get_resources(self, type: int, amount: int = 1):
+        self.resources[type] += amount
+        print(f"Player gained {amount} of resource {type}; total now {self.resources[type]}")
 
     def get_tool(self) -> None:
         """Acquire a new tool for the player."""
@@ -71,33 +112,40 @@ class Player:
             if self.tools[i][0] < self.tools[min_tool][0]:
                 min_tool = i
         self.tools[min_tool][0] += 1
+        print(f"Upgraded tool slot {min_tool} to value {self.tools[min_tool][0]}")
         self.check_vp()
 
     def get_one_use_tool(self, tool_value: int) -> None:
         """Add a one-use tool with `tool_value` to the player's tools."""
         self.one_use_tools.append(tool_value)
+        print(f"Added one-use tool with value {tool_value}")
         self.check_vp()
 
     def get_wheat(self, amount: int) -> None:
         """Add `amount` of wheat to the player's resources."""
         self.wheat += amount
+        print(f"Gained {amount} wheat; total wheat {self.wheat}")
         self.check_vp()
     
     def get_worker(self, amount: int) -> None:
         """Add `amount` of workers to the player's total and available workers."""
         self.total_workers += amount
+        print(f"Gained {amount} worker(s); total workers {self.total_workers}")
         self.check_vp()
 
     def get_card(self, card: Card) -> None:
         """Acquire a new card for the player."""
+        print(f"Player acquired card: {card}")
         self.card_effects.append(card.end_game_effect())
 
     def check_vp(self) -> None:
         """Check and update victory points based on tools owned."""
-        pass
+        print(f"Check VP called. Current VP: {self.vp}")
 
     def feed(self) -> int:
         """Feed the player and return score change based on food shortage."""
         if self.resources[2] - self.wheat < self.total_workers:
             self.vp -=10  # penalty for not feeding
+            print(f"Not enough food: applying penalty, VP now {self.vp}")
         self.resources[2] = max(0, self.resources[2] - self.total_workers + self.wheat)
+        print(f"After feeding: food={self.resources[2]}, wheat carried={self.wheat}, total_workers={self.total_workers}")
