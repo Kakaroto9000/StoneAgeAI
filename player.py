@@ -24,9 +24,10 @@ class Player:
 
     def decide_action(self, possible_actions):
         if self.AI is False:
-            action = input(f"{possible_actions}")
-            amount = input(f"{possible_actions}")
+            action = int(input(f"{possible_actions}"))
+            amount = int(input())
             print(f"Player action chosen: {action}, amount: {amount}")
+            print(self.resources)
             return action, amount
         else:
             pass
@@ -34,11 +35,11 @@ class Player:
     def get_resource_with_die(self, resource_type: int, dice_roll: int) -> None:
         """Add `amount` of `resource_type` to the player's resources."""
         tools = self.decide_to_use_tool(dice_roll, resource_type)
-        gained = resource_type // (dice_roll + tools)
+        gained = dice_roll // (resource_type + tools)
         self.resources[resource_type] += gained
         print(f"Gained {gained} of resource {resource_type} (dice {dice_roll}, tools {tools})")
 
-    def decide_to_buy(self, location, state) -> None:
+    def decide_to_buy(self, location, state= None) -> None:
         """Acquire a new card for the player."""
         if self.AI is False:
             ans = input("Decide to buy (y/n): ")

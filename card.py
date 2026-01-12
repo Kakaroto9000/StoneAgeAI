@@ -1,4 +1,4 @@
-from typing import Dict, Any
+from typing import Dict, Any, List
 from area import Area
 # Number table for card types
 CARD_TYPE_NUMBERS = {
@@ -28,9 +28,9 @@ class Card(Area):
         """Get the numeric representation of the card type."""
         return CARD_TYPE_NUMBERS.get(self.card_type, 0)  # 0 for unknown types
 
-    def immediate_effect(self) -> Dict[str, Any]:
+    def immediate_effect(self) -> list[int]:
         """Return a description of the card's immediate effect."""
-        if self.card_type == "resource":
+        if self.card_type == "add_resource":
             return [self.data.get("resources", 2), self.data.get("amount", 1)]
         elif self.card_type == "resources_with_dice":
             return [self.data.get("resource_type", 2)]
@@ -46,4 +46,4 @@ class Card(Area):
         return 0
     
     def name(self) -> str:
-        return f"{self.card_type()} {self.data} {self.end_game_effect}"
+        return f"{self.card_type} {self.data} {self.end_game_effect()}"
