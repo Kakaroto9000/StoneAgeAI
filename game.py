@@ -20,6 +20,17 @@ class Game:
         self.players: List[Player] = (Player(), Player(), Player(), Player())
         self.round = 0
         self.current_player_idx = 0
+        self.cards: List[Card] = [
+            Card("resource", cost=1, data ={"resources": 2, "amount": 8}),
+            Card("resource", cost=2, data = {"resources": 2, "amount": 8}),
+            Card("resource", cost=3, data = {"resources": 2, "amount": 8}),
+            Card(card_type ="resource", cost = 4, data ={"resources": 2, "amount": 8}),
+        ]
+        self.buildings: List[Building] = [            
+            CertainBuilding(resources=(6,6,3)),
+            FlexBuilding(resources_require_count=5, variety=2),
+            CertainBuilding(resources=(3, 4, 3)),
+            CertainBuilding(resources=(6, 5, 4)),]
         # map of location_id -> list of (player, worker_count)
         self.locations: List[Optional[Any]] = [
             Utility("Farm", 1),
@@ -30,15 +41,9 @@ class Game:
             Gathering(7, 4),
             Gathering(7, 5),
             Gathering(7, 6),
-            Card("resource", cost=1),
-            Card("resource", cost=2),
-            Card("resource", cost=3),
-            Card(cost = 4,card_type ="resource", data=[2,7]),
-            CertainBuilding(resources=(6,6,3)),
-            FlexBuilding(resources_require_count=5, variety=2),
-            CertainBuilding(resources=(3, 4, 3)),
-            CertainBuilding(resources=(6, 5, 4)),
         ]
+        self.locations.extend(self.cards)
+        self.locations.extend(self.buildings)
         self.cards_in_deck: List[Card] = []
         self.buildings_in_deck: Dict[int: List[Building]] = {}
 
@@ -99,9 +104,11 @@ class Game:
 
     def get_avaliable_actions(self):
         avaliable_actions = []
-        for index, location in enumerate(self.locations):
+        index = 0
+        for location in self.locations:
             if location.can_place():
-                avaliable_actions.append([index, location.avaliable_space()])
+                avaliable_actions.append([index, location.avaliable_space(), location.name()])
+            index +=1
         return avaliable_actions
 
     def execute_an_action(self, action: Any) -> None:
@@ -112,7 +119,7 @@ class Game:
         """
         if self.locations[action[0]].can_place(action[1]):
             print(f"Player {self.current_player_idx} executes action {action}")
-            self.place_worker(self.current_player, action[0], action[1])
+            self.place_worker(action[0], action[1])
 
     def round_not_over(self) -> bool:
         """Determine if the current round is still ongoing.
@@ -128,6 +135,7 @@ class Game:
         # Validate inputs and location capacity using `self.map` if available.
         # Update `self.locations` and `player.available_workers` accordingly.
         print(f"Player {self.current_player_idx} places {count} worker(s) at location {location_id}")
+
         self.locations[location_id].place(self.current_player, count)
         self.current_player.available_workers -= count
 
@@ -144,14 +152,14 @@ class Game:
                 if isinstance(location, Utility):
                     print(f"  Utility resolved: {location.name()}")
                     if location.name() == "Farm":
-                        self.current_player().gain_wheat()
+                        self.current_player.gain_wheat()
                     elif location.name() == "House":
-                        self.current_player().gain_worker()
+                        self.current_player.gain_worker()
                     elif location.name() == "Tools":
-                        self.current_player().gain_tool()
+                        self.current_player.gain_tool()
                 elif isinstance(location, (Card, Building)):
                     print(f"  Offer to buy at location: {location}")
-                    if self.current_player().decide_if_buy(location):
+                    if self.current_player.decide_if_buy(location):
                         print(f"  Player {self.current_player_idx} buys {location}")
                         self.player_get_card(location)
                 else:
@@ -178,8 +186,8 @@ class Game:
         card_idx = self.cards.index(card) if card in self.cards else -1
 
         print(f"Player {self.current_player_idx} acquiring card: {card}")
-        self.apply_card_effect(self.current_player, card)
-        self.current_player.get_card(card)
+        self.apply_card_effect(card)
+        self.current_player.get_card(card.end_game_effect())
 
         # Mark card as bought (None) so it can be shifted out later
         if card_idx >= 0:
@@ -198,7 +206,7 @@ class Game:
         effect_type = card.card_type
         effect = card.immediate_effect()
         if effect_type == "add_resource":
-            resource_type = card.data[0]
+            resource_type = effect[0]
             resource_amount = card.data[1]
             print(f"Applying card effect add_resource: +{resource_amount} of {resource_type} to player {self.current_player_idx}")
             self.current_player.get_resources(resource_type, resource_amount)
@@ -211,12 +219,12 @@ class Game:
             self.next_player()
         elif effect_type == "resources_with_dice":
             dice_sum = sum(random.randint(1, 6) for _ in range(2))
-            resource_type = card.data[0]
+            resource_type = effect[0]
             dice_sum = self.current_player.decide_to_use_tool(dice_sum, resource_type)
             amount = dice_sum // resource_type
             self.current_player.resources[resource_type] += amount
         elif effect_type == "add_vp":
-            self.current_player.vp += 3 #default value for vp
+            self.current_player.vp += effect[0] 
         elif effect_type == "add_tool":
             self.current_player.get_tool()
         elif effect_type == "add_wheat":
@@ -226,7 +234,7 @@ class Game:
             self.current_player.get_card(self.draw_card())
         elif effect_type == "one_use_tool":
             # Mark as available
-            self.current_player.get_one_use_tool(card.data["tool_value"])
+            self.current_player.get_one_use_tool(effect[0])
         elif effect_type == "any_2_resources":
             # Placeholder
             self.current_player.choose_resources(2)
@@ -247,26 +255,25 @@ class Game:
         """
         replenish building from each deck respectively
         """
-        for i, building in enumerate(self.buildings):
-            if building is None:
-                new_building = self.draw_building(i)
-                if new_building:
-                    self.buildings[i] = new_building
+        pass
 
     def replenish_cards(self) -> None:
         """Remove bought cards and shift remaining cards, then draw new ones."""
         # Find all None positions (bought cards)
-        bought_indices = [i for i, card in enumerate(self.cards) if card is None]
-
-        # Shift remaining cards to fill gaps from left to right
-        if bought_indices:
-            # Remove all None values
-            self.cards = [card for card in self.cards if card is not None]
+        empty_index = []
+        for index, card in enumerate(self.cards):
+            if card is None:
+                empty_index.append(index)
             # Draw new cards to fill the missing slots
-            for _ in bought_indices:
-                new_card = self.draw_card()
-                if new_card:
-                    self.cards.append(new_card)
+            elif empty_index:
+                self.replace_card(empty_index.pop(), card)
+        for index in empty_index:
+            self.replace_card(empty_index.pop, self.draw_card())
+
+    def replace_card(self, index, new_card):
+        self.cards[index] = new_card
+    # Assuming cards start at position 8 in locations
+        self.locations[8 + index] = new_card
 
     def refresh_humans(self) -> None:
         """Refresh human players' available workers at round end."""

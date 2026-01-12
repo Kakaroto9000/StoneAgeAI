@@ -25,6 +25,10 @@ class CertainBuilding(Building):
             if player_resources.get(resource, 0) < value:
                 return False
         return True
+    
+    def name(self) -> str:
+        return F"Normal Building {self.resources}"
+
 
 class FlexBuilding(Building):
     def __init__(self, resources_require_count: int, variety: Optional[int] = None) -> None:
@@ -43,3 +47,6 @@ class FlexBuilding(Building):
         # Sum the top 'variety' counts (or all if variety is None or more than available)
         total = sum(counts[:self.variety])
         return (total >= self.resources_require_count and all(v>0 for v in counts[:self.variety]))
+
+    def name(self) -> str:
+        return f"Building that needS {self.variety}resources of {self.variety} different types"

@@ -1,6 +1,7 @@
 from typing import Any
+from abc import ABC, abstractmethod
 
-class Area():
+class Area(ABC):
     def __init__(self, capacity: int):
         self.capacity = capacity
         self.occupants: dict[int,int] = {}
@@ -12,7 +13,10 @@ class Area():
         current_occupancy = sum(c for _, c in self.occupants)
         if current_occupancy + count <= self.capacity:
             self.occupants[player] = self.occupants.get(player, 0) + count
-    
+    @abstractmethod
+    def name(self) -> str:
+        pass
+
     def clear(self) -> None:
         """Clear all occupants from the area."""
         self.occupants.clear()
@@ -34,6 +38,6 @@ class Gathering(Area):
     def __init__(self,capacity: int, resource_type: str) -> None:
         self.resource_type = resource_type
         super().__init__(capacity)
-    
-    
 
+    def name(self) -> str:
+        return (f"can collect {self.resource_type}")

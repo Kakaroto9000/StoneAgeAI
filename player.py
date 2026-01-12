@@ -1,6 +1,4 @@
 
-from card import Card
-
 class Player:
     def __init__(self, food: int = 10, workers: int = 5, AI: bool = False) -> None:
         self.wheat = 0
@@ -133,10 +131,10 @@ class Player:
         print(f"Gained {amount} worker(s); total workers {self.total_workers}")
         self.check_vp()
 
-    def get_card(self, card: Card) -> None:
+    def get_card(self, card_end_game_effect) -> None:
         """Acquire a new card for the player."""
-        print(f"Player acquired card: {card}")
-        self.card_effects.append(card.end_game_effect())
+        print(f"Player acquired card: {card_end_game_effect}")
+        self.card_effects.append(card_end_game_effect)
 
     def check_vp(self) -> None:
         """Check and update victory points based on tools owned."""
