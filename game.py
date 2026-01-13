@@ -1,5 +1,6 @@
 from typing import List, Dict, Optional, Any
 import random
+import numpy as np
 
 from area import Gathering
 from player import Player
@@ -324,6 +325,27 @@ class Game:
             return b
         print(f"No building to draw for location {location_id}")
         return None
+    
+    def get_state(self, phase: list[int] = [1,0,0,0,0,0]):
+        resources = self.current_player.resources
+        tools = self.current_player.tools
+        one_use_tool = self.current_player.one_use_tools
+        multipliers = self.current_player.multipliers
+        wheat = self.current_player.wheat
+        drawings = self.current_player.card_effects
+        total_workers=self.current_player.total_workers
+        avaliable_workers = self.current_player.available_workers
+        board_state = []
+        for area in self.locations:
+            if area is not None:
+                board_state.append(area.occupants)
+        card_deck_size = len(self.cards_in_deck)
+        building_decks_size = {}
+        for deck in self.buildings_in_deck.values():
+            building_decks_size[0] = len(deck)
+        self.round
+        
+        
 
 game = Game()
 game.run_game()

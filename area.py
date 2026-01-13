@@ -4,7 +4,10 @@ from abc import ABC, abstractmethod
 class Area(ABC):
     def __init__(self, capacity: int):
         self.capacity = capacity
-        self.occupants: dict[int,int] = {
+        self.occupants: dict[int,int] = { 0:0,
+                                        1:0,
+                                        2:0,
+                                        3:0
         }
 
     def place(self, player_index: int, count: int = 1) -> bool:

@@ -41,9 +41,7 @@ class Card(Area):
 
     def end_game_effect(self) -> int:
         """Calculate the end-game effect for scoring."""
-        if self.card_type == "civilization":
-            return self.multiplier if self.multiplier else self.painting
-        return 0
+        return self.painting
     
     def name(self) -> str:
         return f"{self.card_type} {self.data} {self.end_game_effect()}"

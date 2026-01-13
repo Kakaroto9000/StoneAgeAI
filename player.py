@@ -21,6 +21,7 @@ class Player:
         ]
         self.one_use_tools: list[int] = []
         self.card_effects: list[int] = []
+        self.multipliers: dict[int, int] = {}
 
     def decide_action(self, possible_actions):
         if self.AI is False:
