@@ -170,9 +170,15 @@ class Game:
                         self.current_player.gain_worker()
                     elif location.name() == "Tools":
                         self.current_player.gain_tool()
-                elif isinstance(location, (Card, Building)) and self.current_player.can_buy(location):
+                elif isinstance(location, (Card, Building)) and location.is_able_to_buy(self.current_player.resources):
                     print(f"  Offer to buy at location: {location}")
-                    if self.current_player.decide_to_buy(location) is not None:
+                    if isinstance(location, FlexBuilding) and self.current_player.decide_to_buy_flex_build_card(location.resources_require_count, location.variety, False):
+                        print(f"  Player {self.current_player_idx} buys {location}")
+                        self.player_get_card(location)
+                    elif isinstance(location, CertainBuilding):
+                        print(f"  Player {self.current_player_idx} buys {location}")
+                        self.player_get_card(location)
+                    elif self.current_player.decide_to_buy_flex_build_card(location.cost, 4, True):
                         print(f"  Player {self.current_player_idx} buys {location}")
                         self.player_get_card(location)
                 else:

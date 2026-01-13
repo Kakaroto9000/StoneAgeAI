@@ -39,26 +39,50 @@ class Player:
         self.resources[resource_type] += gained
         print(f"Gained {gained} of resource {resource_type} (dice {dice_roll}, tools {tools})")
 
-    def decide_to_buy(self, resource: int, state= None) -> bool:
+    def decide_to_buy_flex_build_card(self, amount, variety, less_or_equal_variety: bool, state= None) -> bool:
         """Acquire a new card for the player."""
         if self.AI is False:
             ans = input("Decide to buy (y/n): ")
             print(f"Player decision to buy: {ans}")
             if ans.lower() == 'y':
-                print(f"avaliable {self.resources} to spend")
-                ans = []
-                for i in range(resource):
-                    ans.append(input(f"Choose {i} resource to spend"))
-                    return ans
-            return None
+                print(f"Available resources to spend: {self.resources}")
+                
+                confirmed = False
+                while not confirmed:
+                    spent_resources = []
+                    valid = False
+                    
+                    for i in range(amount):
+                        resource_type = int(input(f"Choose resource type {i+1}/{variety} ( 3-wood, 4-stone, 5-clay, 6-gold): "))
+                        
+                        spent_resources.append(resource_type)
+                    if less_or_equal_variety:
+                        if len(set(spent_resources)) <= variety:
+                            valid = True
+                    else:
+                        if len(set(spent_resources)) == variety:
+                            valid = True
+                    
+                    if valid:
+                        print(f"Spent resources: {spent_resources}")
+                        confirm = input("Confirm these choices? (y/n): ")
+                        if confirm.lower() == 'y':
+                            for resource_type in spent_resources:
+                                self.lose_resources(resource_type, 1)
+                            confirmed = True
+                        else:
+                            print("Let's try again...")
+                
+                return True
+            return False
         else:
             pass
 
     def decide_to_use_tool(self, dice_sum: int, resource_type: int) -> int:
         """Decide whether to use a tool when gathering resources."""
         used_tool = 0
-        total_tools = sum(self.resources.values()) + sum(v for v in self.one_use_tools if v is not None)
-        if self.AI is False and total_tools>0:
+        total_tools = sum(v[0] for v in self.tools) + sum(v for v in self.one_use_tools if v is not None)
+        if self.AI is False and total_tools > 0:
             print(f"Decide to use tool for dice sum {dice_sum} and resource type {resource_type} (y/n): ")
             if input().lower() == 'y':
                 for i in range(4):
