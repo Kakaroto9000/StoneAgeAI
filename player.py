@@ -39,21 +39,26 @@ class Player:
         self.resources[resource_type] += gained
         print(f"Gained {gained} of resource {resource_type} (dice {dice_roll}, tools {tools})")
 
-    def decide_to_buy(self, location, state= None) -> None:
+    def decide_to_buy(self, resource: int, state= None) -> bool:
         """Acquire a new card for the player."""
         if self.AI is False:
             ans = input("Decide to buy (y/n): ")
             print(f"Player decision to buy: {ans}")
             if ans.lower() == 'y':
-                return True
-            return False
+                print(f"avaliable {self.resources} to spend")
+                ans = []
+                for i in range(resource):
+                    ans.append(input(f"Choose {i} resource to spend"))
+                    return ans
+            return None
         else:
             pass
 
     def decide_to_use_tool(self, dice_sum: int, resource_type: int) -> int:
         """Decide whether to use a tool when gathering resources."""
         used_tool = 0
-        if self.AI is False:
+        total_tools = sum(self.resources.values()) + sum(v for v in self.one_use_tools if v is not None)
+        if self.AI is False and total_tools>0:
             print(f"Decide to use tool for dice sum {dice_sum} and resource type {resource_type} (y/n): ")
             if input().lower() == 'y':
                 for i in range(4):
@@ -103,6 +108,9 @@ class Player:
     def get_resources(self, type: int, amount: int = 1):
         self.resources[type] += amount
         print(f"Player gained {amount} of resource {type}; total now {self.resources[type]}")
+
+    def lose_resources(self, resource: int, amount: int):
+        self.resources[resource] -= amount
 
     def get_tool(self) -> None:
         """Acquire a new tool for the player."""

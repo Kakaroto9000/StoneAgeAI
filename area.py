@@ -33,6 +33,9 @@ class Area(ABC):
     
     def avaliable_space(self) -> int:
         return self.capacity - sum(v for v in self.occupants.values())
+    
+    def is_able_to_buy(self) -> bool:
+        pass
 
 class Gathering(Area):
     def __init__(self,capacity: int, resource_type: str) -> None:

@@ -26,7 +26,7 @@ class Game:
             Card("add_resource", cost=3, data = {"resources": 2, "amount": 8}),
             Card(card_type ="add_resource", cost = 4, data ={"resources": 2, "amount": 8}),
         ]
-        self.buildings: List[Building] = [            
+        self.buildings: List[Building] = [
             CertainBuilding(resources=(6,6,3)),
             FlexBuilding(resources_require_count=5, variety=2),
             CertainBuilding(resources=(3, 4, 3)),
@@ -50,7 +50,7 @@ class Game:
             1: [CertainBuilding(resources=(3, 4, 3)),CertainBuilding(resources=(3, 4, 3))],
             2: [CertainBuilding(resources=(3, 4, 3)),CertainBuilding(resources=(3, 4, 3))],
             3: [CertainBuilding(resources=(3, 4, 3)),CertainBuilding(resources=(3, 4, 3))],
-                                                             }
+        }
         self.first_player = 0
 
     @property
@@ -172,7 +172,7 @@ class Game:
                         self.current_player.gain_tool()
                 elif isinstance(location, (Card, Building)) and self.current_player.can_buy(location):
                     print(f"  Offer to buy at location: {location}")
-                    if self.current_player.decide_to_buy(location):
+                    if self.current_player.decide_to_buy(location) is not None:
                         print(f"  Player {self.current_player_idx} buys {location}")
                         self.player_get_card(location)
                 else:

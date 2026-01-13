@@ -47,3 +47,12 @@ class Card(Area):
     
     def name(self) -> str:
         return f"{self.card_type} {self.data} {self.end_game_effect()}"
+    
+    def is_able_to_buy(self, player_resources: Dict[int, int]) -> bool:
+        """Check if a player has enough resources to buy this building.
+
+        """
+        # Get the resource counts, sorted in descending order
+        resources = sum(player_resources.values())
+        # Sum the top 'variety' counts (or all if variety is None or more than available)
+        return self.cost<= resources
