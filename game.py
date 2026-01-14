@@ -28,10 +28,10 @@ class Game:
             Card(card_type ="add_resource", cost = 4, data ={"resources": 2, "amount": 8}),
         ]
         self.buildings: List[Building] = [
-            CertainBuilding(resources=(6,6,3)),
+            CertainBuilding(resources=[6,6,3]),
             FlexBuilding(resources_require_count=5, variety=2),
-            CertainBuilding(resources=(3, 4, 3)),
-            CertainBuilding(resources=(6, 5, 4)),]
+            CertainBuilding(resources=[3, 4, 3]),
+            CertainBuilding(resources=[6, 5, 4]),]
         # map of location_id -> list of (player, worker_count)
         self.locations: List[Optional[Any]] = [
             Utility("Farm", 1),
@@ -45,14 +45,15 @@ class Game:
         ]
         self.locations.extend(self.cards)
         self.locations.extend(self.buildings)
-        self.cards_in_deck: List[Card] = [Card("resource", cost=1, data ={"resources": 2, "amount": 8}), Card("resource", cost=1, data ={"resources": 2, "amount": 8}),]
-        self.buildings_in_deck: Dict[int: List[Building]] = {
+        self.cards_in_deck: List[Card] = [Card("add_resource", cost=1, data ={"resources": 2, "amount": 8}), Card("add_resource", cost=1, data ={"resources": 2, "amount": 8}),]
+        self.buildings_in_deck: Dict[int, List[Building]] = {
             0: [CertainBuilding(resources=(3, 4, 3)),CertainBuilding(resources=(3, 4, 3))],
             1: [CertainBuilding(resources=(3, 4, 3)),CertainBuilding(resources=(3, 4, 3))],
             2: [CertainBuilding(resources=(3, 4, 3)),CertainBuilding(resources=(3, 4, 3))],
             3: [CertainBuilding(resources=(3, 4, 3)),CertainBuilding(resources=(3, 4, 3))],
         }
         self.first_player = 0
+        self.current_type_of_action = [1,0,0,0,0,0]
 
     @property
     def current_player(self) -> Player:
@@ -78,7 +79,7 @@ class Game:
         """Determine if the game should continue.
 
         """
-        return len(self.locations) == 16
+        return any(location == None for location in self.locations)
 
     def run_round(self) -> None:
         """High-level flow for a single round:
@@ -166,22 +167,30 @@ class Game:
                 if isinstance(location, Utility):
                     print(f"  Utility resolved: {location.name()}")
                     if location.name() == "Farm":
-                        self.current_player.gain_wheat()
+                        self.current_player.get_wheat(1)
                     elif location.name() == "House":
-                        self.current_player.gain_worker()
+                        self.current_player.get_worker(1)
                     elif location.name() == "Tools":
-                        self.current_player.gain_tool()
-                elif isinstance(location, (Card, Building)) and location.is_able_to_buy(self.current_player.resources):
-                    print(f"  Offer to buy at location: {location}")
-                    if isinstance(location, FlexBuilding) and self.current_player.decide_to_buy_flex_build_card(location.resources_require_count, location.variety, False):
+                        self.current_player.get_tool()
+                elif isinstance(location, FlexBuilding):
+                    result = self.current_player.decide_to_buy_flex_build_card(location.resources_require_count, location.variety, False)
+                    if result[1]:
+                        print(f"  Player {self.current_player_idx} buys {location}")
+                        self.current_player.lose_resources(location.resources)
+                        self.current_player.vp_buildings+= sum(v for v in result[0])
+                        self.buy_building(location)
+                elif isinstance(location, CertainBuilding):
+                    if self.current_player.decide_to_buy_build():
+                        print(f"Player {self.current_player_idx} buys {location}")
+                        self.current_player.vp_buildings+= sum(v for v in location.resources)
+                        self.current_player.lose_resources(location.resources)
+                        self.buy_building(location)
+                elif isinstance(location, Card):
+                    result = self.current_player.decide_to_buy_flex_build_card(location.cost, 4, True)
+                    if result[1]:
                         print(f"  Player {self.current_player_idx} buys {location}")
                         self.player_get_card(location)
-                    elif isinstance(location, CertainBuilding):
-                        print(f"  Player {self.current_player_idx} buys {location}")
-                        self.player_get_card(location)
-                    elif self.current_player.decide_to_buy_flex_build_card(location.cost, 4, True):
-                        print(f"  Player {self.current_player_idx} buys {location}")
-                        self.player_get_card(location)
+                        self.current_player.lose_resources(result[0])
                 else:
                     count = location.occupants[self.current_player_idx]
                     dice_results = self.roll_dices(count)
@@ -197,13 +206,31 @@ class Game:
         """Roll `n` six-sided dice and return results as a list."""
         return [random.randint(1, 6) for _ in range(n)]
 
+    def buy_building(self, location: Building):
+        """Player buys a card and removes it from the display.
+
+        Returns True on success.
+        """
+        # Find card index in display
+        build_idx = self.buildings.index(location)
+
+        print(f"Player {self.current_player_idx} acquiring building: {location.name()}")
+
+        # Mark card as bought (None) so it can be shifted out later
+        if build_idx >= 0:
+            self.cards[build_idx] = None
+        
+        self.locations[12+build_idx] = None
+
+        return True
+
     def player_get_card(self, card: Card) -> bool:
         """Player buys a card and removes it from the display.
 
         Returns True on success.
         """
         # Find card index in display
-        card_idx = self.cards.index(card) if card in self.cards else -1
+        card_idx = self.cards.index(card)
 
         print(f"Player {self.current_player_idx} acquiring card: {card.name()}")
         self.apply_card_effect(card)
@@ -212,6 +239,8 @@ class Game:
         # Mark card as bought (None) so it can be shifted out later
         if card_idx >= 0:
             self.cards[card_idx] = None
+        
+        self.locations[8+card_idx] = None
 
         return True
 
@@ -244,12 +273,12 @@ class Game:
             amount = dice_sum // resource_type
             self.current_player.resources[resource_type] += amount
         elif effect_type == "add_vp":
-            self.current_player.vp += effect[0] 
+            self.current_player.vp_card += effect[0] 
         elif effect_type == "add_tool":
             self.current_player.get_tool()
         elif effect_type == "add_wheat":
             self.current_player.get_wheat(1)
-        elif effect_type == "civilization":
+        elif effect_type == "draw_card":
             # Placeholder
             self.current_player.get_card(self.draw_card())
         elif effect_type == "one_use_tool":
@@ -292,7 +321,7 @@ class Game:
             elif empty_index:
                 self.replace_card(empty_index.pop(), card)
         for index in empty_index:
-            self.replace_card(empty_index.pop, self.draw_card())
+            self.replace_card(empty_index.pop(), self.draw_card())
 
     def replace_card(self, index, new_card):
         self.cards[index] = new_card
@@ -326,26 +355,95 @@ class Game:
         print(f"No building to draw for location {location_id}")
         return None
     
-    def get_state(self, phase: list[int] = [1,0,0,0,0,0]):
-        resources = self.current_player.resources
+    def get_state(self):
+
+        resources = self.current_player.resources.values()
         tools = self.current_player.tools
-        one_use_tool = self.current_player.one_use_tools
-        multipliers = self.current_player.multipliers
+        one_use_tools = self.current_player.one_use_tools
+        multipliers = self.current_player.multipliers.values()
         wheat = self.current_player.wheat
         drawings = self.current_player.card_effects
         total_workers=self.current_player.total_workers
-        avaliable_workers = self.current_player.available_workers
-        board_state = []
-        for area in self.locations:
-            if area is not None:
-                board_state.append(area.occupants)
-        card_deck_size = len(self.cards_in_deck)
-        building_decks_size = {}
-        for deck in self.buildings_in_deck.values():
-            building_decks_size[0] = len(deck)
-        self.round
+        available_workers = self.current_player.available_workers
+    
+    
+        flat_state = []
+
+        # === Scalars (5) ===
+        flat_state.append(self.round)
+        flat_state.append(wheat)
+        flat_state.append(total_workers)
+        flat_state.append(available_workers)
+        flat_state.append(self.current_player.get_vp())
+
+        # === Resources (5) ===
+        flat_state.extend(resources)
+
+        # === Multipliers (4) ===
+        flat_state.extend(multipliers)
+
+        # === Tools (8) ===
+        for tool in tools:
+            flat_state.append(tool[0])
+            flat_state.append(1 if tool[1] else 0)
         
+        # === One-use tools (4) ===
+        MAX_ONE_USE_TOOLS = 4
+        for i in range(MAX_ONE_USE_TOOLS):
+            flat_state.append(one_use_tools[i] if i < len(one_use_tools) else 0)
+
+        # === Card Drawings (16) ===
+        # In get_state()
+        MAX_DECK_0_CARDS = 8
+        MAX_DECK_1_CARDS = 8
+
+        drawings = self.current_player.card_effects
+
+        # Deck 0 cards
+        for i in range(MAX_DECK_0_CARDS):
+            flat_state.append(drawings[0][i] if i < len(drawings[0]) else 0)
+
+        # Deck 1 cards
+        for i in range(MAX_DECK_1_CARDS):
+            flat_state.append(drawings[1][i] if i < len(drawings[1]) else 0)
         
 
-game = Game()
-game.run_game()
+        # === Board state (16 locations × 4 players = 64) ===
+        for area in self.locations:
+            if area is not None:
+                flat_state.extend(area.occupants.values())
+            else:
+                flat_state.extend([0, 0, 0, 0])
+
+        # === Building deck sizes (4) ===
+        for deck in self.buildings_in_deck.values():
+            flat_state.append(len(deck))
+    
+        # === Buildings (4 × 3 = 12) ===
+        for building in self.buildings:
+            if building is None:
+                flat_state.extend([0, 0, 0])
+            elif isinstance(building, FlexBuilding):
+                flat_state.extend([building.resources_require_count, building.variety, 0])
+            else:
+                flat_state.extend(building.resources)
+
+        # === Cards (4 × 5 = 15) ===
+        flat_state.append(len(self.cards_in_deck))
+        for card in self.cards:
+            if card is None:
+                flat_state.extend([0, 0, 0, 0 ,0])
+            else:
+                card_data: list[int] = [0,0]
+                if card.data is not None:
+                    card_data = list(card.data.values())
+                    if len(card_data)!= 2:
+                        card_data.append(0)
+                flat_state.extend([card.card_type_num, card.cost, card.painting or 0])
+                flat_state.extend(card_data)
+        
+        flat_state.extend(self.current_type_of_action)
+
+        # === Total (149) ===
+        return np.array(flat_state, dtype=np.float32)
+

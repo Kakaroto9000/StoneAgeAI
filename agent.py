@@ -4,8 +4,8 @@ import numpy as np
 from game import Game
 from collections import deque
 
-Max_Memory = 100000
-Batch_size = 1000
+MAX_MEMORY = 100000
+BATCH_SIZE = 1000
 LR = 0.001
 
 class Agent:
@@ -13,7 +13,9 @@ class Agent:
         self.n_games = 0
         self.epsilon = 0 #randomness of the game
         self.gamma = 0 #discount rate
-        self.memory = deque(maxlen=Max_Memory) #popleft()
+        self.memory = deque(maxlen=MAX_MEMORY) #popleft()
+        self.model = None
+        self.trainer = None
         # TODO: model, trainer 
 
     def get_state(self, game):
@@ -21,16 +23,28 @@ class Agent:
 
 
     def remember(self, state, action, reward, next_state, done):
-        pass
+        self.memory.append((state, action, reward, next_state, done)) #pop_left if full memory
 
     def train_long_memory(self):
-        pass
+        if len(self.memory) > BATCH_SIZE:
+            mini_sample = random.sample(self.memory, BATCH_SIZE)
+        else:
+            mini_sample = self.memory
+
+        states, actions, rewards, next_states, dones = zip(*mini_sample)
+        self.trainer.train_step(states, actions, rewards, next_states, dones)
 
     def train_short_memory(self, state, action, reward, next_state, done):
-        pass
+        self.trainer.train_step(state, action, reward, next_state, done)
 
-    def get_action(self):
-        pass
+    def get_action(self, state, game):
+        self.epsilon = 80 - self.n_games
+        final_move = [0,0,0,0,0,0,0,0]
+        if random.randint(0,200) < self.epsilon:
+            final_move = game.get_random_valid_move()
+        else:
+            state0 = torch.tensor(state, dtype=torch.float)
+            prediction = self.model.predict(state0)
 
 def train():
     plot_scores = []
@@ -43,7 +57,7 @@ def train():
 
         #get old state and old move
         state_old = agent.get_state(game)
-        final_move = agent.get_action(state_old)
+        final_move = agent.get_action(state_old, game)
 
         #perform new and get a new state
         reward, done ,score = game.play_ster(final_move)

@@ -5,6 +5,7 @@ class Player:
         self.total_workers = workers
         self.available_workers = workers
         self.vp = 0  # Victory points
+        self.vp_buildings = 0
         self.AI = AI
         self.resources = {
             2: food,  # Food
@@ -19,9 +20,19 @@ class Player:
             [0, True],
             [0, True]
         ]
+        self.building_num = 0
+
         self.one_use_tools: list[int] = []
-        self.card_effects: list[int] = []
-        self.multipliers: dict[int, int] = {}
+        self.card_effects: dict[int, list[int]] = {
+            0: [],  # e.g., painting deck
+            1: [],  # e.g., 2nd deck
+        }
+        self.multipliers: dict[str, int] = {
+            'tools': 0,
+            'buildings': 0,
+            'workers': 0,
+            'wheat': 0,
+        }
 
     def decide_action(self, possible_actions):
         if self.AI is False:
@@ -69,13 +80,21 @@ class Player:
                         confirm = input("Confirm these choices? (y/n): ")
                         if confirm.lower() == 'y':
                             for resource_type in spent_resources:
-                                self.lose_resources(resource_type, 1)
+                                if less_or_equal_variety == False:
+                                    return (spent_resources, True)
                             confirmed = True
                         else:
                             print("Let's try again...")
                 
-                return True
-            return False
+            return (0, False)
+        else:
+            pass
+    
+    def decide_to_buy_build(self):
+        if self.AI == False:
+            ans = input("Decide to buy (y/n): ")
+            print(f"Player decision to buy: {ans}")
+            return ans
         else:
             pass
 
@@ -134,8 +153,9 @@ class Player:
         self.resources[type] += amount
         print(f"Player gained {amount} of resource {type}; total now {self.resources[type]}")
 
-    def lose_resources(self, resource: int, amount: int):
-        self.resources[resource] -= amount
+    def lose_resources(self, resources: list[int]):
+        for resource in resources:
+            self.resources[resource] -= 1
 
     def get_tool(self) -> None:
         """Acquire a new tool for the player."""
@@ -145,39 +165,48 @@ class Player:
                 min_tool = i
         self.tools[min_tool][0] += 1
         print(f"Upgraded tool slot {min_tool} to value {self.tools[min_tool][0]}")
-        self.check_vp()
 
     def get_one_use_tool(self, tool_value: int) -> None:
         """Add a one-use tool with `tool_value` to the player's tools."""
         self.one_use_tools.append(tool_value)
         print(f"Added one-use tool with value {tool_value}")
-        self.check_vp()
 
     def get_wheat(self, amount: int) -> None:
         """Add `amount` of wheat to the player's resources."""
         self.wheat += amount
         print(f"Gained {amount} wheat; total wheat {self.wheat}")
-        self.check_vp()
     
     def get_worker(self, amount: int) -> None:
         """Add `amount` of workers to the player's total and available workers."""
         self.total_workers += amount
         print(f"Gained {amount} worker(s); total workers {self.total_workers}")
-        self.check_vp()
 
     def get_card(self, card_end_game_effect) -> None:
         """Acquire a new card for the player."""
         print(f"Player acquired card: {card_end_game_effect}")
-        self.card_effects.append(card_end_game_effect)
+        if card_end_game_effect in self.card_effects[0]:
+            self.card_effects[1].append(card_end_game_effect)
+        else:
+            self.card_effects[0].append(card_end_game_effect)
 
-    def check_vp(self) -> None:
+    def get_vp(self) -> int:
         """Check and update victory points based on tools owned."""
-        print(f"Check VP called. Current VP: {self.vp}")
+        vp = (
+            self.vp
+            + self.vp_buildings
+            + self.multipliers['tools']*sum(v[0] for v in self.tools) 
+            + self.multipliers['buildings']*self.building_num 
+            + self.multipliers['workers']*self.total_workers
+            + self.multipliers['wheat']*self.wheat
+        )
+        return vp
+        
+
 
     def feed(self) -> int:
         """Feed the player and return score change based on food shortage."""
         if self.resources[2] - self.wheat < self.total_workers:
             self.vp -=10  # penalty for not feeding
-            print(f"Not enough food: applying penalty, VP now {self.vp}")
+            print(f"Not enough food: applying penalty, VP now {self.get_vp()}")
         self.resources[2] = max(0, self.resources[2] - self.total_workers + self.wheat)
         print(f"After feeding: food={self.resources[2]}, wheat carried={self.wheat}, total_workers={self.total_workers}")

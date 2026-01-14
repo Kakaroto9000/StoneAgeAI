@@ -2,22 +2,22 @@ from typing import Dict, Any, List
 from area import Area
 # Number table for card types
 CARD_TYPE_NUMBERS = {
-    "food": 1,
-    "resource": 2,
-    "dice_roll": 3,
-    "resources_with_dice": 4,
-    "victory_points": 5,
-    "extra_tool": 6,
-    "agriculture": 7,
-    "civilization": 8,
-    "one_use_tool": 9,
-    "any_2_resources": 10
+    "add_resource": 1,
+    "dice_roll": 2,
+    "resources_with_dice": 3,
+    "add_vp": 4,
+    "add_tool": 5,
+    "add_wheat": 6,
+    "draw_card": 7,
+    "one_use_tool": 8,
+    "any_2_resources": 9
 }
 
 class Card(Area):
     def __init__(self, card_type: str, cost: int, data: Dict[str, int] = None, painting: int = None, multiplier: int = None) -> None:
         super().__init__(1)
         self.cost = cost
+        self.card_id = CARD_TYPE_NUMBERS[card_type]
         self.card_type = card_type  # e.g., "food", "resource", "dice_roll", "victory_points", etc.
         self.data = data  # Dictionary with card-specific data
         self.painting = painting

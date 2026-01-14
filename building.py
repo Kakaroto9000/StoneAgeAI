@@ -13,7 +13,7 @@ class Building(Area):
         """
 
 class CertainBuilding(Building):
-    def __init__(self, resources: Dict[int, int]) -> None:
+    def __init__(self, resources: list[int]) -> None:
         super().__init__()
         self.resources = resources
 
@@ -21,9 +21,12 @@ class CertainBuilding(Building):
         """Check if a player has enough resources to buy this building.
 
         """
-        for resource, value in self.resources.items():
-            if player_resources.get(resource, 0) < value:
+        resource_count = {
+        }
+        for resource in self.resources:
+            if player_resources.get(resource, 0) - resource_count.get(resource, 0) - 1 < 0:
                 return False
+            resource_count[resource] = resource_count.get(resource, 0) + 1
         return True
     
     def name(self) -> str:
