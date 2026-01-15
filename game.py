@@ -16,6 +16,8 @@ from typing import List, Dict, Optional, Any, Union
 import random
 import numpy as np
 
+from itertools import product
+
 from area import Gathering, Area
 from player import Player
 from building import CertainBuilding, FlexBuilding, Building
@@ -251,25 +253,49 @@ class Game:
             list: List of available actions, each containing:
                 [location_index, available_space, location_name]
         """
-        available_actions = []
-        index = 0
+
         if self.current_type_of_action[0] == 1:
-            for location in self.locations:
-                # Check if location has space and can accept placements
-                if location is not None and location.can_place():
-                    available_actions.append([
-                        index,
-                        location.available_space(),
-                        location.name()
-                    ])
-                index += 1
-            return available_actions
+            return self.get_actions_for_placement()
         elif self.current_type_of_action[1] == 1:
-            self.avaliable_tools = []
-            for index, tool in enumerate(self.current_player.tools):
-                if tool[1] == True:
-                    available_actions.append(index)
-                one_use_tools = len(self.current_player.one_use_tools)
+            return self.get_actions_for_tools_choose()
+        elif self.current_type_of_action[2] ==;
+            return [[0],[1]]
+    
+    def get_actions_for_placement(self):
+        locations_space = []
+        for index, location in enumerate(self.locations):
+            # Check if location has space and can accept placements
+            if location is not None and location.can_place():
+                locations_space.append([
+                    index,
+                    location.available_space(),
+                ])
+
+            
+        all_actions = []
+
+        # Is equivalent to:
+        for loc_index, avaliable_space in locations_space:
+            for i in range(avaliable_space):
+                all_actions.append([loc_index,i])
+        return all_actions
+    
+    def get_actions_for_tools_choose(self):
+        avaliable_tools = []
+        all_actions = []
+        for index, tool in enumerate(self.current_player.tools):
+            if tool[1] == True and tool[0] > 0:
+                avaliable_tools.append(index)
+        for i in range(len(self.current_player.one_use_tools)):
+            avaliable_tools.append(i+4)
+        for combo in product([0, 1], repeat=len(avaliable_tools)):
+            lst = [0] * 7
+            for i, pos in enumerate(avaliable_tools):
+                lst[pos] = combo[i]
+            all_actions.append(lst)
+        return all_actions
+
+
 
     def execute_an_action(self, action: Any) -> bool:
         """
