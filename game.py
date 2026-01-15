@@ -123,7 +123,7 @@ class Game:
         
         # Encoded action state for neural network (used in get_state())
         # Represents the current type of action being performed
-        self.current_type_of_action = [1, 0, 0, 0, 0, 0]
+        self.current_type_of_action = [1, 0, 0, 0, 0]
 
     @property
     def current_player(self) -> Player:
@@ -234,29 +234,38 @@ class Game:
 
     def get_available_actions(self) -> list:
         """
-        Get all valid actions (worker placements) available to current player.
-        
-        Scans all locations and returns those with available space where
-        the current player can place workers.
+        Get all valid actions available to current player depending
+        on a self.current_type_of_action
+
+        [0] = 1 Means its time to place workers
+        [1] = 1 Means its time to decide to use or not tools on a resources
+        [2] = 1 Means its time to decide buy or not building
+        [3] = 1 Means its time to decide which resources to spend for Flex Building or Card
+        [4] = 1 Means its time to decide which die to choose a die on a civilization Card
         
         Returns:
             list: List of available actions, each containing:
-                  [location_index, available_space, location_name]
+                [location_index, available_space, location_name]
         """
         available_actions = []
         index = 0
-        
-        for location in self.locations:
-            # Check if location has space and can accept placements
-            if location is not None and location.can_place():
-                available_actions.append([
-                    index,
-                    location.available_space(),
-                    location.name()
-                ])
-            index += 1
-        
-        return available_actions
+        if self.current_type_of_action[0] == 1:
+            for location in self.locations:
+                # Check if location has space and can accept placements
+                if location is not None and location.can_place():
+                    available_actions.append([
+                        index,
+                        location.available_space(),
+                        location.name()
+                    ])
+                index += 1
+            return available_actions
+        elif self.current_type_of_action[1] == 1:
+            self.avaliable_tools = []
+            for index, tool in enumerate(self.current_player.tools):
+                if tool[1] == True:
+                    available_actions.append(index)
+                one_use_tools = len(self.current_player.one_use_tools)
 
     def execute_an_action(self, action: Any) -> bool:
         """
@@ -341,7 +350,7 @@ class Game:
         for location in self.locations:
             if location is None or not location.is_occupied(self.current_player_idx):
                 continue
-            
+
             # ===== UTILITY RESOLUTION =====
             if isinstance(location, Utility):
                 print(f"  Utility resolved: {location.name()}")
@@ -351,6 +360,24 @@ class Game:
                     self.current_player.get_worker(1)
                 elif location.name() == "ToolShop":  # Note: original had "Tools"
                     self.current_player.get_tool()
+
+            # ===== GATHERINH RESOLUTION =====
+            elif isinstance(location, Gathering):
+                if location.is_occupied(self.current_player_idx):
+                    self.resolve_gathering(location)
+
+            # ===== CARD RESOLUTION =====
+            elif isinstance(location, Card):
+                result = self.current_player.decide_to_buy_flex_build_card(
+                    location.cost,
+                    4,
+                    True
+                )
+                if result[1]:  # If player confirmed purchase
+                    print(f"Player {self.current_player_idx} buys card {location}")
+                    self.current_player.get_card(location.end_game_effect())
+                    self.current_player.lose_resources(result[0])
+                    self.buy_card(location)
             
             # ===== FLEX BUILDING RESOLUTION =====
             elif isinstance(location, FlexBuilding):
@@ -373,18 +400,6 @@ class Game:
                     self.current_player.lose_resources(location.resources)
                     self.buy_building(location)
             
-            # ===== CARD RESOLUTION =====
-            elif isinstance(location, Card):
-                result = self.current_player.decide_to_buy_flex_build_card(
-                    location.cost,
-                    4,
-                    True
-                )
-                if result[1]:  # If player confirmed purchase
-                    print(f"Player {self.current_player_idx} buys card {location}")
-                    self.current_player.get_card(location.end_game_effect())
-                    self.current_player.lose_resources(result[0])
-                    self.buy_card(location)
 
     def resolve_gathering(self, location: Gathering) -> None:
         """
@@ -408,7 +423,7 @@ class Game:
         # TODO: Call decide_to_use_tool and modify base_amount
         
         # Grant resources
-        self.current_player.get_resources(location.resource_type, base_amount)
+        self.current_player.get_resource_with_die(location.resource_type, base_amount)
 
     def apply_card_effect(self, card: Card) -> None:
         """
@@ -662,7 +677,7 @@ class Game:
         - Available cards info
         - Action encoding
         
-        Total size: 149 elements (must match network input size)
+        Total size: 148 elements (must match network input size)
         
         Returns:
             np.ndarray: 1D array of float32 values representing game state.
@@ -764,7 +779,7 @@ class Game:
         # === Action encoding (6) ===
         flat_state.extend(self.current_type_of_action)
 
-        # === Total (149) ===
+        # === Total (148) ===
         return np.array(flat_state, dtype=np.float32)
 
     def get_random_valid_move(self) -> list:
