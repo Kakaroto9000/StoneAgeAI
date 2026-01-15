@@ -10,7 +10,6 @@ Classes:
     Gathering: Concrete area for resource gathering (wood, stone, clay, gold).
 """
 
-from typing import Any
 from abc import ABC, abstractmethod
 
 

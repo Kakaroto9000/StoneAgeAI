@@ -12,15 +12,18 @@ Classes:
     Game: Main game controller managing all game state and mechanics.
 """
 
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Optional, Any, Union
 import random
 import numpy as np
 
-from area import Gathering
+from area import Gathering, Area
 from player import Player
 from building import CertainBuilding, FlexBuilding, Building
 from card import Card
 from utility import Utility
+
+
+Location = Union[Utility, Gathering, Card, FlexBuilding, CertainBuilding, None]
 
 
 class Game:
@@ -89,7 +92,8 @@ class Game:
         # Indices 3-7: Gathering areas  
         # Indices 8-11: Cards
         # Indices 12-15: Buildings
-        self.locations: List[Optional[Any]] = [
+
+        self.locations: List[Location] = [
             Utility("Farm", 1),           # Gain wheat
             Utility("House", 2),          # Gain workers
             Utility("ToolShop", 1),       # Gain tools
@@ -369,7 +373,7 @@ class Game:
             # ===== CARD RESOLUTION =====
             elif isinstance(location, Card):
                 result = self.current_player.decide_to_buy_flex_build_card(
-                    location.cost,
+                    location.cost,  # type: ignore
                     4,
                     True
                 )
@@ -399,7 +403,7 @@ class Game:
                     self.current_player.vp_buildings += sum(v for v in location.resources)
                     self.current_player.lose_resources(location.resources)
                     self.buy_building(location)
-            
+
 
     def resolve_gathering(self, location: Gathering) -> None:
         """
