@@ -447,3 +447,4 @@ class Game:
         # === Total (149) ===
         return np.array(flat_state, dtype=np.float32)
 
+#TODO: add get_random_legal_action()
