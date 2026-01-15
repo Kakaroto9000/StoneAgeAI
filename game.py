@@ -11,7 +11,7 @@ testing game logic or training a reinforcement learning agent.
 Classes:
     Game: Main game controller managing all game state and mechanics.
 """
-
+from itertools import combinations_with_replacement
 from typing import List, Dict, Optional, Any, Union
 import random
 import numpy as np
@@ -128,8 +128,9 @@ class Game:
         self.first_player = 0
         
         # Encoded action state for neural network (used in get_state())
-        # Represents the current type of action being performed
+        # Represents the current type of action being performed and data about this action if needed (for civilization cards and Flex buildings)
         self.current_type_of_action = [1, 0, 0, 0, 0]
+        self.current_action_data = []
 
     @property
     def current_player(self) -> Player:
@@ -216,7 +217,7 @@ class Game:
                 while action_is_not_valid:
                     available_actions = self.get_available_actions()
                     action = self.current_player.decide_action(available_actions)
-                    action_is_not_valid = self.execute_an_action(action)
+                    action_is_not_valid = self.executing_placing_workers(action)
             
             self.next_player()
 
@@ -238,16 +239,16 @@ class Game:
         self.refresh_humans()
         self.get_new_buildings_and_cards()
 
-    def get_available_actions(self) -> list:
+    def get_available_actions(self, state = None) -> list:
         """
         Get all valid actions available to current player depending
         on a self.current_type_of_action
 
         [0] = 1 Means its time to place workers
-        [1] = 1 Means its time to decide to use or not tools on a resources
-        [2] = 1 Means its time to decide buy or not building
-        [3] = 1 Means its time to decide which resources to spend for Flex Building or Card
-        [4] = 1 Means its time to decide which die to choose a die on a civilization Card
+        [0] = 2 Gathering time and its time to decite to use tools or not
+        [0] = 3 Means its time to decide buy or not building
+        [0] = 4 Means its time to decide which resources to spend for Flex Building or Card
+        [0] = 5 Means its time to decide which die to choose a die on a civilization Card
         
         Returns:
             list: List of available actions, each containing:
@@ -256,10 +257,14 @@ class Game:
 
         if self.current_type_of_action[0] == 1:
             return self.get_actions_for_placement()
-        elif self.current_type_of_action[1] == 1:
+        elif self.current_type_of_action[0] == 2:
             return self.get_actions_for_tools_choose()
-        elif self.current_type_of_action[2] ==;
+        elif self.current_type_of_action[0] == 3:
             return [[0],[1]]
+        elif self.current_type_of_action[0] == 4:
+            return self.get_actions_for_spending_resources()
+        elif self.current_type_of_action[0] == 5:
+            return self.current_action_data
     
     def get_actions_for_placement(self):
         locations_space = []
@@ -295,9 +300,52 @@ class Game:
             all_actions.append(lst)
         return all_actions
 
+    def get_actions_for_spending_resources(self):
+        data = self.current_action_data
 
+        if not isinstance(data, (Building, Card)):
+            raise Exception("Current action data isn't a flex building or a card")
+                
+        valid_actions = []
 
-    def execute_an_action(self, action: Any) -> bool:
+        if isinstance(Card):
+            return self.get_variants_to_spend_resources(data.cost)
+        
+        
+        if data.resources_require_count == 7:
+            available = self.current_player.resources  # {3: 2, 4: 1, 5: 3, 6: 0}
+    
+            max_spend = min(7, sum(available.values()))
+    
+            for n in range(1, max_spend + 1):
+                valid_actions.extend(self.get_variants_to_spend_resources(n))
+        else:
+            return self.get_variants_to_spend_resources(data.get_variants_to_spend_resources, data.variety)
+    
+        return valid_actions
+    
+    def get_variants_to_spend_resources(self, cost: int, fixed_variety: Optional[int] = None):
+        available = self.current_player.resources  # {3: 2, 4: 1, 5: 3, 6: 0}
+        resource_types = list(available.keys())    # [3, 4, 5, 6]
+        
+        valid_actions = []
+        for combo in combinations_with_replacement(resource_types, cost):
+            # Count each resource type in this combo
+            counts = {r: combo.count(r) for r in resource_types}
+            # Check if player can afford
+            
+            if fixed_variety is not None:
+                # Count how many different types are used
+                types_used = (fixed_variety == sum(1 for r in resource_types if counts[r] > 0))
+            else:
+                types_used = True
+            
+            if types_used and all(counts[r] <= available[r] for r in resource_types):
+                # Convert to list format: [wood_count, clay_count, stone_count, gold_count]
+                valid_actions.append([counts[r] for r in resource_types])
+        return valid_actions
+
+    def executing_placing_workers(self, action: Any) -> bool:
         """
         Execute a player's chosen action (place workers at a location).
         
@@ -320,7 +368,7 @@ class Game:
             self.place_worker(action[0], action[1])
             return False  # Action succeeded
         
-        return True  # Action failed validation
+        raise Exception("Cant place there!!")  # Action failed validation
 
     def round_not_over(self) -> bool:
         """
@@ -377,7 +425,7 @@ class Game:
         """
         print(f"Resolving locations for player {self.current_player_idx}")
         
-        for location in self.locations:
+        for index, location in enumerate(self.locations):
             if location is None or not location.is_occupied(self.current_player_idx):
                 continue
 
@@ -394,41 +442,45 @@ class Game:
             # ===== GATHERINH RESOLUTION =====
             elif isinstance(location, Gathering):
                 if location.is_occupied(self.current_player_idx):
-                    self.resolve_gathering(location)
+                    self.current_type_of_action = [1, index]
+                    ##self.resolve_gathering()
 
             # ===== CARD RESOLUTION =====
             elif isinstance(location, Card):
-                result = self.current_player.decide_to_buy_flex_build_card(
-                    location.cost,  # type: ignore
-                    4,
-                    True
-                )
-                if result[1]:  # If player confirmed purchase
-                    print(f"Player {self.current_player_idx} buys card {location}")
-                    self.current_player.get_card(location.end_game_effect())
-                    self.current_player.lose_resources(result[0])
-                    self.buy_card(location)
+                    self.current_type_of_action = [2, index]
+                ##result = self.current_player.decide_to_buy_flex_build_card(
+                ##    location.cost,  # type: ignore
+                ##    4,
+                ##    True
+                ##)
+                ##if result[1]:  # If player confirmed purchase
+                ##    print(f"Player {self.current_player_idx} buys card {location}")
+                    ##self.current_player.get_card(location.end_game_effect())
+                    ##self.current_player.lose_resources(result[0])
+                    ##self.buy_card(location)
             
             # ===== FLEX BUILDING RESOLUTION =====
             elif isinstance(location, FlexBuilding):
-                result = self.current_player.decide_to_buy_flex_build_card(
-                    location.resources_require_count,
-                    location.variety,
-                    False
-                )
-                if result[1]:  # If player confirmed purchase
-                    print(f"  Player {self.current_player_idx} buys {location}")
-                    self.current_player.lose_resources(location.resources)
-                    self.current_player.vp_buildings += sum(v for v in result[0])
-                    self.buy_building(location)
+                ##result = self.current_player.decide_to_buy_flex_build_card(
+                ##    location.resources_require_count,
+                ##    location.variety,
+                ##    False
+                ##)
+                ##if result[1]:  # If player confirmed purchase
+                ##    print(f"  Player {self.current_player_idx} buys {location}")
+                ##    self.current_player.lose_resources(location.resources)
+                ##    self.current_player.vp_buildings += sum(v for v in result[0])
+                ##    self.buy_building(location)
+                self.current_type_of_action = [2, index]
             
             # ===== CERTAIN BUILDING RESOLUTION =====
             elif isinstance(location, CertainBuilding):
-                if self.current_player.decide_to_buy_build():
-                    print(f"Player {self.current_player_idx} buys {location}")
-                    self.current_player.vp_buildings += sum(v for v in location.resources)
-                    self.current_player.lose_resources(location.resources)
-                    self.buy_building(location)
+                ##if self.current_player.decide_to_buy_build():
+                ##    print(f"Player {self.current_player_idx} buys {location}")
+                ##    self.current_player.vp_buildings += sum(v for v in location.resources)
+                ##    self.current_player.lose_resources(location.resources)
+                ##    self.buy_building(location)
+                self.current_type_of_action = [2, index]
 
 
     def resolve_gathering(self, location: Gathering) -> None:
@@ -603,7 +655,7 @@ class Game:
         # Building locations start at index 12 in locations list
         self.locations[12 + index] = new_building
 
-    def buy_building(self, building: Building) -> None:
+    def buy_building(self, building: Building, resources) -> None:
         """
         Mark a building as purchased (remove from board).
         
@@ -619,9 +671,7 @@ class Game:
                 self.buildings[i] = None
                 self.locations[12 + i] = None
                 break
-        
-        # Track ownership
-        self.current_player.building_num += 1
+
 
     def buy_card(self, card: Card) -> None:
         """
@@ -827,6 +877,30 @@ class Game:
         action = random.choice(actions)
         return action[:2]
 
+    def play_ster(self, action):
+        if self.current_type_of_action[0] == 1:
+            self.locations[action[0]].place(action[1])
+            if sum(p.available_workers for p in self.players) == 0:
+                self.current_player_idx = self.first_player
+                self.resolve_locations()
+                self.next_player()
+        elif self.current_type_of_action[0] == 2:
+            #TODO
+            pass
+        elif self.current_type_of_action[0] == 3:
+            if self.action[0] == 1:
+                self.buy_building(self.locations[self.current_action_data[1]], action)
+            else:
+                self.locations[[self.current_action_data[1]]].clear()
+        elif self.current_type_of_action[0] == 4:
+            #TODO
+            pass
+        elif self.current_type_of_action[0] == 5:
+            #TODO
+            pass
+                    
+                
+            
     # TODO: Implement missing methods
     # - play_ster(): Main game loop for RL training
     # - reset(): Reset game state for next episode
