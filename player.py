@@ -117,7 +117,7 @@ class Player:
             # AI player: decision logic goes here
             pass
 
-    def get_resource_with_die(self, resource_type: int, dice_roll: int) -> None:
+    def get_resource_with_die(self, resource_type: int, dice_roll: int, tools) -> None:
         """
         Gain resources based on a dice roll.
         
@@ -130,12 +130,22 @@ class Player:
             dice_roll (int): Sum of dice roll (determines base amount).
         """
         # Decide if using tools to improve this gathering
-        tools = self.decide_to_use_tool(dice_roll, resource_type)
-        
+        if self.AI == False:
+            tools_used = self.decide_to_use_tool(dice_roll, resource_type)
+        else:
+            tools_used = self.use_tool(tools)
         # Calculate gained amount: dice value / resource type (easier with higher dice)
         gained = dice_roll // (resource_type + tools)
         self.resources[resource_type] += gained
         print(f"Gained {gained} of resource {resource_type} (dice {dice_roll}, tools {tools})")
+        
+    def use_tool(self, tools):
+        used_tools_sum = 0
+        for index, tool in enumerate(self.tools):
+            if tools[index] == 1:
+                self.tools[index][1] = False
+                used_tools_sum += self.tools[index][0]
+                
 
     def decide_to_buy_flex_build_card(self, amount, variety, less_or_equal_variety: bool, 
                                       state=None) -> tuple:

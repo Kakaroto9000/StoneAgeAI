@@ -483,7 +483,7 @@ class Game:
                 self.current_type_of_action = [2, index]
 
 
-    def resolve_gathering(self, location: Gathering) -> None:
+    def resolve_gathering(self, location: Gathering, tools: list[int]) -> None:
         """
         Resolve a gathering location (collect resources).
         
@@ -505,7 +505,7 @@ class Game:
         # TODO: Call decide_to_use_tool and modify base_amount
         
         # Grant resources
-        self.current_player.get_resource_with_die(location.resource_type, base_amount)
+        self.current_player.get_resource_with_die(location.resource_type, base_amount, tools)
 
     def apply_card_effect(self, card: Card) -> None:
         """
@@ -655,7 +655,7 @@ class Game:
         # Building locations start at index 12 in locations list
         self.locations[12 + index] = new_building
 
-    def buy_building(self, building: Building, resources) -> None:
+    def buy_building(self, building_index: Building, resources = None) -> None:
         """
         Mark a building as purchased (remove from board).
         
@@ -665,12 +665,10 @@ class Game:
         Args:
             building (Building): The building being purchased.
         """
+        self.current_player.vp_buildings += sum(v for v in resources)
         # Find and remove the building
-        for i, b in enumerate(self.buildings):
-            if b is building:
-                self.buildings[i] = None
-                self.locations[12 + i] = None
-                break
+        self.buildings[building_index-12] = None
+        self.locations[building_index] = None
 
 
     def buy_card(self, card: Card) -> None:
@@ -883,21 +881,37 @@ class Game:
             if sum(p.available_workers for p in self.players) == 0:
                 self.current_player_idx = self.first_player
                 self.resolve_locations()
-                self.next_player()
+            return #TODO
         elif self.current_type_of_action[0] == 2:
-            #TODO
-            pass
+            self.resolve_gathering(self.current_action_data[0], action)
+            self.resolve_locations()
         elif self.current_type_of_action[0] == 3:
-            if self.action[0] == 1:
-                self.buy_building(self.locations[self.current_action_data[1]], action)
+            if action[0] == 1:
+                if isinstance(CertainBuilding, self.locations[self.locations[self.current_action_data[0]]]):
+                    self.buy_building(self.current_action_data[0], self.locations[self.current_action_data[0]].resources)
+                    self.resolve_gathering()
+                else:
+                    self.current_type_of_action = 3
             else:
-                self.locations[[self.current_action_data[1]]].clear()
+                self.locations[self.current_action_data[0]].clear()
+                self.resolve_locations()
         elif self.current_type_of_action[0] == 4:
-            #TODO
-            pass
+            self.buy_building(self.current_action_data[0], action)
+            self.current_action_data = []
+            self.resolve_locations()
         elif self.current_type_of_action[0] == 5:
             #TODO
-            pass
+            self.current_player.get_reward(action[1])
+            self.current_action_data.remove(action[1])
+            self.next_player()
+            if self.current_action_data:
+                self.resolve_locations
+            else:
+                #TODO
+                pass
+            return #TODO
+        
+    def check_if_any_uncollectedhumans_left()
                     
                 
             
