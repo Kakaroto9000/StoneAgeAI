@@ -794,9 +794,9 @@ class Game:
             flat_state.append(tool[0])
             flat_state.append(1 if tool[1] else 0)
 
-        # === One-use tools (4) ===
+        # === One-use tools (3) ===
         # Pad with zeros if fewer than 4
-        MAX_ONE_USE_TOOLS = 4
+        MAX_ONE_USE_TOOLS = 3
         for i in range(MAX_ONE_USE_TOOLS):
             flat_state.append(one_use_tools[i] if i < len(one_use_tools) else 0)
 
@@ -844,11 +844,12 @@ class Game:
                 flat_state.extend([0, 0, 0, 0, 0])
             else:
                 # Extract card data
-                card_data: list[int] = [0, 0]
-                if card.data is not None:
-                    card_data = list(card.data.values())
+                card_data = list(card.data.values())
+                if card.data:
                     if len(card_data) != 2:
                         card_data.append(0)
+                else:
+                    card_data = [0,0]
                 
                 flat_state.extend([
                     card.card_type_num,
@@ -857,10 +858,10 @@ class Game:
                 ])
                 flat_state.extend(card_data)
 
-        # === Action encoding (6) ===
-        flat_state.extend(self.current_type_of_action)
+        # === Action encoding (1) ===
+        flat_state.append(self.current_type_of_action)
 
-        # === Total (148) ===
+        # === Total (142) ===
         return np.array(flat_state, dtype=np.float32)
 
     def get_random_valid_move(self) -> list:
@@ -878,7 +879,7 @@ class Game:
         action = random.choice(actions)
         return action
 
-    def play_ster(self, action):
+    def play_step(self, action):
         player_active = self.current_player
         current_score = self.current_player.get_score()
         current_vp = self.current_player.get_vp()
@@ -925,6 +926,7 @@ class Game:
         reward += (sum(v[0] for v in current_score[4]) - sum(v[0] for v in past_score[4]))*4
         reward += (current_score[5] - past_score[5])*2
         reward += (sum(v for v in current_score[4].values()) - sum(v for v in past_score[4].values()))*3
+        return reward
 
     def check_if_any_uncollectedhumans_left(self):
         return any(loc.is_empty() for loc in self.location if loc is not None)

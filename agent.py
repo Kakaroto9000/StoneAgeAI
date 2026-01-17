@@ -14,6 +14,7 @@ import random
 import numpy as np
 from game import Game
 from collections import deque
+from model import Linear_QNet, QTrainer
 
 # Configuration constants for training
 MAX_MEMORY = 100000  # Maximum size of experience replay buffer
@@ -50,14 +51,14 @@ class Agent:
         """
         self.n_games = 0  # Counter for number of games played
         self.epsilon = 0  # Exploration rate (randomness) - starts at 0, increases with games
-        self.gamma = 0    # Discount factor for future rewards - TODO: set to appropriate value (e.g., 0.9)
+        self.gamma = 0.9  # Discount factor for future rewards - TODO: set to appropriate value (e.g., 0.9)
         
         # Experience replay buffer: stores transitions (s, a, r, s', done)
         # When full, oldest experiences are automatically removed
         self.memory = deque(maxlen=MAX_MEMORY)
         
-        self.model = None      # TODO: Initialize neural network model (e.g., DQN network)
-        self.trainer = None    # TODO: Initialize trainer class for optimization
+        self.model = Linear_QNet(142, 256,7)      # TODO: Initialize neural network model (e.g., DQN network)
+        self.trainer = QTrainer(self.model, lr=LR, gamma = self.gamma)    # TODO: Initialize trainer class for optimization
 
     def get_state(self, game: Game) -> np.ndarray:
         """
@@ -163,8 +164,8 @@ class Agent:
         else:
             # Exploitation: use network to predict best move
             state0 = torch.tensor(state, dtype=torch.float)
-            prediction = self.model.predict(state0)
-            # TODO: Convert prediction to final_move (argmax or similar)
+            prediction = self.model(state0)
+            final_move = torch.argmax(prediction)
         
         return final_move
 
@@ -174,7 +175,7 @@ def train() -> None:
     Main training loop for the RL agent.
     
     Runs the game repeatedly, collecting experience and training the agent.
-    Tracks performance metrics (scores, records) over multiple games.
+    Tracks performance metrics (vps, records) over multiple games.
     
     The training loop:
     1. Gets current game state
@@ -188,10 +189,10 @@ def train() -> None:
     Note: Some method names in the Game class may have typos and should be verified.
     """
     # Lists to track performance over games
-    plot_scores = []          # Score from each game
-    plot_mean_scores = []     # Running average of scores
-    total_score = 0           # Cumulative score across all games
-    record = 0                # Best score achieved so far
+    plot_vps = []          # vp from each game
+    plot_mean_vps = []     # Running average of vps
+    total_vp = 0           # Cumulative vp across all games
+    record = 0                # Best vp achieved so far
     
     # Initialize agent and game
     agent = Agent()
@@ -204,7 +205,7 @@ def train() -> None:
         final_move = agent.get_action(state_old, game)
 
         # ===== Execute action and get feedback =====
-        reward, done, score = game.play_ster(final_move)  # Note: check method name "play_ster"
+        reward, done, vp = game.play_step(final_move)  # Note: check method name "play_ster"
         state_new = agent.get_state(game)
 
         # ===== Short-term training (immediate feedback) =====
@@ -218,16 +219,15 @@ def train() -> None:
             # Train on batch from memory
             game.reset()
             agent.n_games += 1
-            agent.train_long_memory(state_old, final_move, reward, state_new, done)
+            agent.train_long_memory()
             
-            # Track record score
-            if score > record:
-                record = score
-                # TODO: Uncomment when model saving is implemented
-                # agent.model.save()
+            # Track record vp
+            if vp > record:
+                record = vp
+                agent.model.save()
 
             # Print progress
-            print(f'Game {agent.n_games}, Score {score}, Record {record}')
+            print(f'Game {agent.n_games}, vp {vp}, Record {record}')
 
 
 if __name__ == '__main__':
