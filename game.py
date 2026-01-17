@@ -67,6 +67,27 @@ class Game:
         - Deck of cards and buildings for replenishment
         """
         # Initialize 4 players
+
+    @property
+    def current_player(self) -> Player:
+        """
+        Get the Player object for the current player.
+        
+        Returns:
+            Player: The player whose turn it currently is.
+        """
+        return self.players[self.current_player_idx]
+
+    def start_game(self, seed: Optional[int] = None) -> None:
+        """
+        Prepare the game for play.
+        
+        Initializes all players with starting resources and optionally sets
+        a random seed for reproducibility.
+        
+        Args:
+            seed (int, optional): Random seed for reproducible games.
+        """
         self.players: List[Player] = (Player(), Player(), Player(), Player())
         
         # Game state tracking
@@ -125,42 +146,14 @@ class Game:
         }
         
         # Game flow tracking
-        self.first_player = 0
+        self.first_player = random.randint(0,3)
         
         # Encoded action state for neural network (used in get_state())
         # Represents the current type of action being performed and data about this action if needed (for civilization cards and Flex buildings)
-        self.current_type_of_action = [1, 0, 0, 0, 0]
+        self.current_type_of_action = 1
         self.current_action_data = []
-
-    @property
-    def current_player(self) -> Player:
-        """
-        Get the Player object for the current player.
+        self.game_end = False
         
-        Returns:
-            Player: The player whose turn it currently is.
-        """
-        return self.players[self.current_player_idx]
-
-    def start_game(self, seed: Optional[int] = None) -> None:
-        """
-        Prepare the game for play.
-        
-        Initializes all players with starting resources and optionally sets
-        a random seed for reproducibility.
-        
-        Args:
-            seed (int, optional): Random seed for reproducible games.
-        """
-        if seed is not None:
-            random.seed(seed)
-        
-        # Reset workers for all players
-        for p in self.players:
-            p.total_workers = 5
-            p.available_workers = 5
-        
-        print(f"Game started with {len(self.players)} players")
 
     def run_game(self) -> None:
         """
@@ -230,14 +223,6 @@ class Game:
             self.resolve_locations()
             self.next_player()
         
-        # ===== FEEDING PHASE =====
-        # Players pay food for workers
-        self.feed_players()
-        
-        # ===== REPLENISHMENT PHASE =====
-        # Reset workers and restock board
-        self.refresh_humans()
-        self.get_new_buildings_and_cards()
 
     def get_available_actions(self, state = None) -> list:
         """
@@ -255,15 +240,15 @@ class Game:
                 [location_index, available_space, location_name]
         """
 
-        if self.current_type_of_action[0] == 1:
+        if self.current_type_of_action == 1:
             return self.get_actions_for_placement()
-        elif self.current_type_of_action[0] == 2:
+        elif self.current_type_of_action == 2:
             return self.get_actions_for_tools_choose()
-        elif self.current_type_of_action[0] == 3:
+        elif self.current_type_of_action == 3:
             return [[0],[1]]
-        elif self.current_type_of_action[0] == 4:
+        elif self.current_type_of_action == 4:
             return self.get_actions_for_spending_resources()
-        elif self.current_type_of_action[0] == 5:
+        elif self.current_type_of_action == 5:
             return self.current_action_data
     
     def get_actions_for_placement(self):
@@ -442,12 +427,15 @@ class Game:
             # ===== GATHERINH RESOLUTION =====
             elif isinstance(location, Gathering):
                 if location.is_occupied(self.current_player_idx):
-                    self.current_type_of_action = [1, index]
+                    self.current_type_of_action = 2
+                    worker_count = location.occupants[self.current_player_idx]
+                    self.current_action_data = sum(random.randint(1, 6) for _ in range(worker_count))
                     ##self.resolve_gathering()
 
             # ===== CARD RESOLUTION =====
             elif isinstance(location, Card):
-                    self.current_type_of_action = [2, index]
+                    self.current_type_of_action = 3
+                    self.current_action_data = index
                 ##result = self.current_player.decide_to_buy_flex_build_card(
                 ##    location.cost,  # type: ignore
                 ##    4,
@@ -471,7 +459,9 @@ class Game:
                 ##    self.current_player.lose_resources(location.resources)
                 ##    self.current_player.vp_buildings += sum(v for v in result[0])
                 ##    self.buy_building(location)
-                self.current_type_of_action = [2, index]
+                self.current_type_of_action = 3
+                self.current_action_data = index
+                
             
             # ===== CERTAIN BUILDING RESOLUTION =====
             elif isinstance(location, CertainBuilding):
@@ -480,32 +470,47 @@ class Game:
                 ##    self.current_player.vp_buildings += sum(v for v in location.resources)
                 ##    self.current_player.lose_resources(location.resources)
                 ##    self.buy_building(location)
-                self.current_type_of_action = [2, index]
+                self.current_type_of_action = 3
+                self.current_action_data = index
+            
+        if self.check_if_any_uncollectedhumans_left():
+            self.next_player()
+            self.resolve_locations()
+        else:
+            self.finish_round()
+    
+    def finish_round(self):
+        self.feed_players()
+
+        self.first_player = (self.first_player + 1) % len(self.players)
+        # ===== REPLENISHMENT PHASE =====
+        # Reset workers and restock board
+        self.refresh_humans()
+        self.get_new_buildings_and_cards()
+
+        self.current_action_data = []
+        self.current_type_of_action = 1
 
 
-    def resolve_gathering(self, location: Gathering, tools: list[int]) -> None:
+        self.game_end = self.game_not_ended()
+
+
+
+    def resolve_gathering(self, location_index: Gathering, tools: list[int]) -> None:
         """
         Resolve a gathering location (collect resources).
         
         Calculates how much of a resource the player gathers based on:
-        - Number of workers placed at the location
-        - Resource type and availability
+        - location_index
         - Player's tools (if used)
         
         Args:
             location (Gathering): The gathering area being resolved.
         """
-        worker_count = location.occupants[self.current_player_idx]
+
+        base_amount = self.current_action_data
         
-        # Dice roll determines base amount
-        # TODO: Implement proper gathering logic with tool usage
-        base_amount = sum(random.randint(1, 6) for _ in range(worker_count))
-        
-        # Apply tool bonuses
-        # TODO: Call decide_to_use_tool and modify base_amount
-        
-        # Grant resources
-        self.current_player.get_resource_with_die(location.resource_type, base_amount, tools)
+        self.current_player.get_resource_with_die(self.location[location_index].resource_type, base_amount, tools)
 
     def apply_card_effect(self, card: Card) -> None:
         """
@@ -537,10 +542,8 @@ class Game:
         elif effect_type == "dice_roll":
             # Roll dice for each player and offer choices
             dices = self.roll_dice_separate(len(self.players))
-            self.current_player.choose_reward_and_apply(dices)
-            for _ in range(len(self.players) - 1):
-                self.next_player().choose_reward_and_apply(dices)
-            self.next_player()
+            self.current_action_data(dices)
+            self.current_type_of_action = 5
         
         elif effect_type == "resources_with_dice":
             # Roll dice and gather specific resource
@@ -873,49 +876,61 @@ class Game:
         if not actions:
             return [0, 0]
         action = random.choice(actions)
-        return action[:2]
+        return action
 
     def play_ster(self, action):
-        if self.current_type_of_action[0] == 1:
+        player_active = self.current_player
+        current_score = self.current_player.get_score()
+        current_vp = self.current_player.get_vp()
+        if self.current_type_of_action0 == 1:
             self.locations[action[0]].place(action[1])
-            if sum(p.available_workers for p in self.players) == 0:
+            if self.round_not_over():
                 self.current_player_idx = self.first_player
                 self.resolve_locations()
-            return #TODO
-        elif self.current_type_of_action[0] == 2:
+            else:
+                self.next_player()
+        elif self.current_type_of_action == 2:
             self.resolve_gathering(self.current_action_data[0], action)
             self.resolve_locations()
-        elif self.current_type_of_action[0] == 3:
+        elif self.current_type_of_action == 3:
             if action[0] == 1:
-                if isinstance(CertainBuilding, self.locations[self.locations[self.current_action_data[0]]]):
+                if isinstance(CertainBuilding, self.locations[self.current_action_data[0]]):
                     self.buy_building(self.current_action_data[0], self.locations[self.current_action_data[0]].resources)
                     self.resolve_gathering()
                 else:
-                    self.current_type_of_action = 3
+                    self.current_type_of_action = 4
             else:
                 self.locations[self.current_action_data[0]].clear()
                 self.resolve_locations()
-        elif self.current_type_of_action[0] == 4:
+        elif self.current_type_of_action == 4:
             self.buy_building(self.current_action_data[0], action)
             self.current_action_data = []
             self.resolve_locations()
-        elif self.current_type_of_action[0] == 5:
-            #TODO
-            self.current_player.get_reward(action[1])
-            self.current_action_data.remove(action[1])
+        elif self.current_type_of_action == 5:
+            self.current_player.get_reward(action[0])
+            self.current_action_data.remove(action[0])
             self.next_player()
             if self.current_action_data:
                 self.resolve_locations
-            else:
-                #TODO
-                pass
-            return #TODO
-        
-    def check_if_any_uncollectedhumans_left()
-                    
-                
-            
+        reward = self.calculate_reward(current_score, player_active.get_score())
+        return reward, self.game_end, player_active.get_vp()
+    
+    def calculate_reward(self, past_score, current_score):
+        reward = 0
+        for index, v in enumerate(past_score[0]):
+            reward += (current_score[0][index] - v)*.7
+        reward += (current_score[1] - past_score[1])*1
+        reward += (current_score[2] - past_score[2])*1.5
+        reward += (current_score[3] - past_score[3])*4
+        reward += (sum(v[0] for v in current_score[4]) - sum(v[0] for v in past_score[4]))*4
+        reward += (current_score[5] - past_score[5])*2
+        reward += (sum(v for v in current_score[4].values()) - sum(v for v in past_score[4].values()))*3
+
+    def check_if_any_uncollectedhumans_left(self):
+        return any(loc.is_empty() for loc in self.location if loc is not None)
     # TODO: Implement missing methods
-    # - play_ster(): Main game loop for RL training
     # - reset(): Reset game state for next episode
     # - get_random_legal_action(): Better random move selection
+
+    def reset(self):
+        self.start_game()

@@ -117,7 +117,7 @@ class Player:
             # AI player: decision logic goes here
             pass
 
-    def get_resource_with_die(self, resource_type: int, dice_roll: int, tools) -> None:
+    def get_resource_with_die(self, resource_type: int, dice_roll: int, tools: list[int]) -> None:
         """
         Gain resources based on a dice roll.
         
@@ -135,16 +135,20 @@ class Player:
         else:
             tools_used = self.use_tool(tools)
         # Calculate gained amount: dice value / resource type (easier with higher dice)
-        gained = dice_roll // (resource_type + tools)
+        gained = dice_roll // (resource_type + tools_used)
         self.resources[resource_type] += gained
         print(f"Gained {gained} of resource {resource_type} (dice {dice_roll}, tools {tools})")
         
     def use_tool(self, tools):
         used_tools_sum = 0
-        for index, tool in enumerate(self.tools):
+        for index, _ in enumerate(self.tools):
             if tools[index] == 1:
                 self.tools[index][1] = False
                 used_tools_sum += self.tools[index][0]
+        for index, _ in enumerate(self.one_use_tools):
+            if tools[index+4] == 1:
+                used_tools_sum += self.tools.pop(index)
+        return used_tools_sum
                 
 
     def decide_to_buy_flex_build_card(self, amount, variety, less_or_equal_variety: bool, 
@@ -460,8 +464,17 @@ class Player:
             + self.multipliers['buildings'] * self.building_num
             + self.multipliers['workers'] * self.total_workers
             + self.multipliers['wheat'] * self.wheat
+            + self.drawings_vp()
         )
         return vp
+    
+    def drawings_vp(self):
+        vp = 0
+        for i in range(2):
+            vp+= len(self.card_effects[i])*len(self.card_effects[i])
+    
+    def get_score(self) -> list[int]:
+        return [self.resources, self.wheat, self.total_workers, self.get_vp(), self.tools, sum(v for v in self.one_use_tools), self.multipliers.values()]
 
     def feed(self) -> None:
         """

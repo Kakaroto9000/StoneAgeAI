@@ -87,6 +87,9 @@ class Area(ABC):
         # Reinitialize with zeros for all players
         for i in range(4):
             self.occupants[i] = 0
+
+    def is_empty(self) -> None:
+        return any(value>0 for value in self.occupants.values())
     
     def is_occupied(self, player_index: int) -> bool:
         """
