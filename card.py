@@ -50,7 +50,7 @@ class Card(Area):
     """
     
     def __init__(self, card_type: str, cost: int, data: Dict[str, int] = None, 
-                 painting: int = None, multiplier: int = None) -> None:
+                 painting: int = None, multiplier: str = None) -> None:
         """
         Initialize a Card with type, cost, and effects.
         
@@ -95,7 +95,7 @@ class Card(Area):
         - add_resource: Return [resource_type, amount]
         - resources_with_dice: Return [resource_type]
         - one_use_tool: Return [tool_value]
-        - gain_vp: Return [vp_amount]
+        - add_vp: Return [vp_amount]
         
         Returns:
             list[int]: Effect parameters as integers. Contents depend on card_type.
@@ -106,8 +106,8 @@ class Card(Area):
             return [self.data.get("resource_type", 2)]
         elif self.card_type == "one_use_tool":
             return [self.data.get("tool_value", 1)]
-        elif self.card_type == "gain_vp":
-            return [self.data.get("gain_vp", 3)]
+        elif self.card_type == "add_vp":
+            return [self.data.get("add_vp", 3)]
         
         # Unknown card type or card with no immediate effect
         return []
@@ -123,7 +123,7 @@ class Card(Area):
         Returns:
             int: Victory points from this card at game end (or 0 if None).
         """
-        return self.painting if self.painting is not None else 0
+        return self.painting if self.painting is not None else self.multiplier
     
     def name(self) -> str:
         """
@@ -150,7 +150,7 @@ class Card(Area):
             bool: True if player has >= cost resources total, False otherwise.
         """
         # Sum all resources the player has
-        total_resources = sum(player_resources.values())
+        total_resources = sum(v for key,v in player_resources.items() if key != 2)
         
         # Can buy if total >= cost
         return self.cost <= total_resources

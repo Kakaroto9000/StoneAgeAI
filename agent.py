@@ -11,14 +11,16 @@ Classes:
 
 import torch
 import random
+import os
 import numpy as np
 from game import Game
 from collections import deque
 from model import Linear_QNet, QTrainer
+from helper import plot
 
 # Configuration constants for training
-MAX_MEMORY = 100000  # Maximum size of experience replay buffer
-BATCH_SIZE = 1000    # Number of experiences sampled per training batch
+MAX_MEMORY = 1000000  # Maximum size of experience replay buffer
+BATCH_SIZE = 2048    # Number of experiences sampled per training batch
 LR = 0.001          # Learning rate for the neural network optimizer
 
 
@@ -42,7 +44,7 @@ class Agent:
         trainer: Training utility class for updating the model (to be implemented).
     """
     
-    def __init__(self):
+    def __init__(self, num_actions):
         """
         Initialize the agent with empty memory and default RL parameters.
         
@@ -57,7 +59,14 @@ class Agent:
         # When full, oldest experiences are automatically removed
         self.memory = deque(maxlen=MAX_MEMORY)
         
-        self.model = Linear_QNet(142, 256,7)      # TODO: Initialize neural network model (e.g., DQN network)
+        self.model = Linear_QNet(147, 512, num_actions)      # TODO: Initialize neural network model (e.g., DQN network)
+
+        model_path = './model/model.pth'
+        if os.path.exists(model_path):
+            self.model.load_state_dict(torch.load(model_path))
+            print("Loaded saved model!")
+    
+        self.trainer = QTrainer(self.model, lr=LR, gamma=self.gamma)
         self.trainer = QTrainer(self.model, lr=LR, gamma = self.gamma)    # TODO: Initialize trainer class for optimization
 
     def get_state(self, game: Game) -> np.ndarray:
@@ -151,8 +160,9 @@ class Agent:
         Returns:
             np.ndarray: The action vector (size 8 for 8 possible moves).
         """
+        from model import device
         # Decrease epsilon over games - more exploration early, more exploitation later
-        self.epsilon = 80 - self.n_games
+        self.epsilon = max(10, 100 - self.n_games/5)  # Always keep some exploration
         
         # Initialize action vector (8 possible actions/locations)
         final_move = [0, 0, 0, 0, 0, 0, 0, 0]
@@ -160,13 +170,16 @@ class Agent:
         # Epsilon-greedy: explore with probability epsilon/200
         if random.randint(0, 200) < self.epsilon:
             # Exploration: pick random valid move
-            final_move = game.get_random_valid_move()
+            final_move = game.mask_generator.get_random_valid_action(game)
         else:
             # Exploitation: use network to predict best move
-            state0 = torch.tensor(state, dtype=torch.float)
+            state0 = torch.tensor(state, dtype=torch.float).to(device)
             prediction = self.model(state0)
-            final_move = torch.argmax(prediction)
-        
+
+            mask = torch.tensor(game.get_mask(), dtype=torch.bool).to(device)
+            prediction[~mask] = float('-inf')
+
+            final_move = torch.argmax(prediction).item()
         return final_move
 
 
@@ -192,42 +205,58 @@ def train() -> None:
     plot_vps = []          # vp from each game
     plot_mean_vps = []     # Running average of vps
     total_vp = 0           # Cumulative vp across all games
-    record = 0                # Best vp achieved so far
+    record = -10000               # Best vp achieved so far
     
     # Initialize agent and game
-    agent = Agent()
     game = Game()
+    game.reset()
+    agent = Agent(num_actions=game.action_system.NUM_ACTIONS)
     
     # Main training loop
     while True:
-        # ===== Get old state and choose action =====
         state_old = agent.get_state(game)
-        final_move = agent.get_action(state_old, game)
+        current_player = game.current_player_idx  # Save BEFORE play_step
 
-        # ===== Execute action and get feedback =====
-        reward, done, vp = game.play_step(final_move)  # Note: check method name "play_ster"
+        final_move = agent.get_action(state_old, game)
+        
+        reward, done, vp = game.play_step(final_move)
         state_new = agent.get_state(game)
 
-        # ===== Short-term training (immediate feedback) =====
-        agent.train_short_memory(state_old, final_move, reward, state_new, done)
+        # Train only on Player 0's experiences
+        if current_player == 0:
+            agent.train_short_memory(state_old, final_move, reward, state_new, done)
+            agent.remember(state_old, final_move, reward, state_new, done)
 
-        # ===== Store in long-term memory =====
-        agent.remember(state_old, final_move, reward, state_new, done)
-
-        # ===== If game ended, train long-term and reset =====
         if done:
-            # Train on batch from memory
+            
+            p0_vp = game.players[0].get_vp()
+            p0 = game.players[0]
+            print(f"P0 end: food={p0.resources[2]}, wheat={p0.wheat}, workers={p0.total_workers}, vp={p0.get_vp()}")
+
             game.reset()
             agent.n_games += 1
             agent.train_long_memory()
-            
-            # Track record vp
-            if vp > record:
-                record = vp
+
+            # Get Player 0's final VP (not vp from play_step)
+            if done:
+                cards_owned = len(p0.card_effects[0]) + len(p0.card_effects[1])
+                print(f"P0 end: food={p0.resources[2]}, wheat={p0.wheat}, "
+                f"workers={p0.total_workers}, vp={p0.get_vp()}, "
+                f"buildings={p0.building_num}, cards={cards_owned}, "
+                f"tools={sum(t[0] for t in p0.tools)}, "
+                f"multipliers={list(p0.multipliers.values())}")
+
+            if p0_vp > record:
+                record = p0_vp
                 agent.model.save()
 
-            # Print progress
-            print(f'Game {agent.n_games}, vp {vp}, Record {record}')
+            print(f'Game {agent.n_games}, vp {p0_vp}, Record {record}')
+
+            """plot_vps.append(vp)
+            total_vp += vp
+            mean_score = total_vp/agent.n_games
+            plot_mean_vps.append(mean_score)
+            plot(plot_vps, plot_mean_vps)"""
 
 
 if __name__ == '__main__':

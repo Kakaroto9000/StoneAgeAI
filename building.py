@@ -180,10 +180,10 @@ class FlexBuilding(Building):
         """
         # Special case: requirement of 7 means "any 1 resource of any type"
         if self.resources_require_count == 7:
-            return any(v > 0 for v in player_resources.values())
+            return any(v > 0 for key, v in player_resources.items() if key != 2)
         
         # Get the resource counts, sorted in descending order (most abundant first)
-        counts = sorted(player_resources.values(), reverse=True)
+        counts = sorted((v for key,v in player_resources.items() if key != 2), reverse= True)
         
         # Sum the top 'variety' counts
         # If variety is None or more than available resources, take all
