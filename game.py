@@ -11,6 +11,7 @@ testing game logic or training a reinforcement learning agent.
 Classes:
     Game: Main game controller managing all game state and mechanics.
 """
+from importlib import resources
 from itertools import combinations_with_replacement
 from typing import List, Dict, Optional, Any, Union
 import random
@@ -101,10 +102,10 @@ class Game:
         
         # Cards available on board (up to 4)
         self.cards: List[Card] = [
-            Card("add_resource", cost=1, data={"resources": 2, "amount": 8}),
-            Card("add_resource", cost=2, data={"resources": 2, "amount": 8}),
-            Card("add_resource", cost=3, data={"resources": 2, "amount": 8}),
-            Card(card_type="add_resource", cost=4, data={"resources": 2, "amount": 8}),
+            Card("add_resource", cost=1, data={"resources": 2, "amount": 8}, multiplier= 11),
+            Card("add_resource", cost=2, data={"resources": 2, "amount": 8}, multiplier= 21),
+            Card("add_resource", cost=3, data={"resources": 2, "amount": 8}, multiplier= 31),
+            Card(card_type="add_resource", cost=4, data={"resources": 2, "amount": 8}, multiplier=42),
         ]
         
         # Buildings available on board (up to 4)
@@ -125,11 +126,11 @@ class Game:
             Utility("Farm", 1),           # Gain wheat
             Utility("House", 2),          # Gain workers
             Utility("ToolShop", 1),       # Gain tools
-            Gathering(40, 2),             # Food (resource 2)
-            Gathering(7, 3),              # Wood (resource 3)
-            Gathering(7, 4),              # Stone (resource 4)
-            Gathering(7, 5),              # Clay (resource 5)
-            Gathering(7, 6),              # Gold (resource 6)
+            Gathering(40, 2, 75),             # Food (resource 2)
+            Gathering(7, 3, 28),              # Wood (resource 3)
+            Gathering(7, 4, 18),              # Stone (resource 4)
+            Gathering(7, 5, 12),              # Clay (resource 5)
+            Gathering(7, 6, 10),              # Gold (resource 6)
         ]
         
         # Add cards and buildings to locations
@@ -156,8 +157,6 @@ class Game:
         
 
     def game_ended(self) -> bool:
-        if self.round >= 50:
-            return True
         # End if card deck AND all board card slots are empty
         if len(self.cards_in_deck) == 0 and any(c is None for c in self.cards):
             return True
@@ -165,6 +164,8 @@ class Game:
         for i, deck in self.buildings_in_deck.items():
             if len(deck) == 0 and self.buildings[i] is None:
                 return True
+        if self.round >= 50:
+            return True
         return False
                 
     def get_valid_actions_for_choose_2_resources(self):
@@ -398,12 +399,11 @@ class Game:
         self.get_new_buildings_and_cards()
         self.refresh_tools()
 
-
-
         self.current_action_data = [0,0,0,0]
         self.current_type_of_action = 1
         self.current_player_idx = self.first_player
         self.game_end = self.game_ended()
+
 
     def resolve_gathering(self, tools: list[int]) -> None:
         """
@@ -416,8 +416,18 @@ class Game:
         Args:
             location (Gathering): The gathering area being resolved.
         """
-        
-        self.current_player.get_resource_with_die(self.current_action_data[0], self.current_action_data[1], tools)
+        tools_used = self.current_player.use_tool(tools)
+        dice_roll = self.current_action_data[1]
+        resource_type = self.current_action_data[0]
+        # Calculate gained amount: dice value / resource type (easier with higher dice)
+        gained = (dice_roll + tools_used) // resource_type
+
+        gained = min(gained, self.locations[resource_type+1].get_total_resources())
+        self.locations[resource_type+1].change_total_resources(-gained)
+
+        self.current_player.get_resources(resource_type, gained)
+
+
 
         if self.current_type_of_action == 2:
             self.locations[self.current_action_data[0]+1].occupants[self.current_player_idx] = 0
@@ -443,13 +453,14 @@ class Game:
         """
         effect_type = card.card_type
         effect = card.immediate_effect()
+        self.current_player.get_card(card.end_game_effect())
+        self.current_action_data = [0,0,0,0]
         
         if effect_type == "add_resource":
             # Grant specified resources
             resource_type = effect[0]
             resource_amount = effect[1]
             self.current_player.get_resources(resource_type, resource_amount)
-            self.resolve_locations()
         
         elif effect_type == "dice_roll":
             # Roll dice for each player and offer choices
@@ -467,29 +478,25 @@ class Game:
         elif effect_type == "add_vp":
             # Award victory points
             self.current_player.vp += effect[0]
-            self.resolve_locations()
         
         elif effect_type == "add_tool":
             # Grant tool
             self.current_player.get_tool()
-            self.resolve_locations()
         
         elif effect_type == "add_wheat":
             # Grant wheat
             self.current_player.get_wheat(1)
-            self.resolve_locations()
         
         elif effect_type == "draw_card":
             # Draw and apply another card
             card = self.draw_card()
             if card is not None:
                 self.current_player.get_card(card.end_game_effect())
-            self.resolve_locations()
         
         elif effect_type == "one_use_tool":
             # Grant single-use tool
+            #print(f"DEBUG: Adding one-use tool, for {self.current_player_idx} current count: {len(self.current_player.one_use_tools)}")
             self.current_player.get_one_use_tool(effect[0])
-            self.resolve_locations()
         
         elif effect_type == "any_2_resources":
             # Let player choose 2 resources to gain
@@ -513,6 +520,19 @@ class Game:
         """
         self.replenish_buildings()
         self.replenish_cards()
+
+    def get_reward(self, choice: int) -> None:
+        """
+        Apply reward choice from dice roll card effect."""
+        resource_type = choice+2
+        if 1 <= choice <= 4:
+            amount = min(1, self.locations[resource_type+1].get_total_resources())
+            self.current_player.get_resources(resource_type, amount)
+            self.locations[resource_type+1].change_total_resources(-amount)
+        elif choice == 5:
+            self.current_player.get_tool()
+        else:
+            self.current_player.get_wheat()
 
     def replenish_buildings(self) -> None:
         """
@@ -540,10 +560,15 @@ class Game:
             # Shift remaining cards into empty slots
             elif empty_index:
                 self.replace_card(empty_index.pop(0), card)
+                empty_index.append(index)
         
         # Fill remaining empty slots with new cards from deck
         for index in empty_index:
             self.replace_card(index, self.draw_card())
+
+        for i, card in enumerate(self.cards):
+            if card is not None:
+                card.cost = i + 1
 
     def replace_card(self, index: int, new_card: Optional[Card]) -> None:
         """
@@ -555,10 +580,11 @@ class Game:
             index (int): Index in the cards list (0-3).
             new_card (Card): The new card to place.
         """
+        if new_card is not None:
+            new_card.cost = index + 1
         self.cards[index] = new_card
         # Card locations start at index 8 in locations list
         self.locations[8 + index] = new_card
-        new_card.cost = index + 1
 
     def replace_building(self, index: int, new_building: Building) -> None:
         """
@@ -584,13 +610,30 @@ class Game:
         Args:
             building (Building): The building being purchased.
         """
+        for res in resources:
+            if res>0:
+                self.locations[res+1].change_total_resources(1)
+        self.current_player.lose_resources(resources)
         self.current_player.vp_buildings += sum(v for v in resources)
         # Find and remove the building
         self.buildings[building_index-12] = None
         self.locations[building_index] = None
+        self.current_player.building_num += 1
 
+    def get_2_resources(self, resource1: int, resource2: int) -> None:
+        """
+        Grant the current player two chosen resources.
+        
+        Args:
+            resource1 (int): Type of the first resource (3=wood, 4=stone, 5=clay, 6=gold).
+            resource2 (int): Type of the second resource (3=wood, 4=stone, 5=clay, 6=gold).
+        """
+        for resource in [resource1, resource2]:
+            amount = min(1, self.locations[resource+1].get_total_resources())
+            self.current_player.get_resources(resource, amount)
+            self.locations[resource+1].change_total_resources(-amount)
 
-    def buy_card(self, card: Card) -> None:
+    def buy_card(self, card: Card, resources: list) -> None:
         """
         Mark a card as purchased (remove from board).
         
@@ -599,6 +642,14 @@ class Game:
         Args:
             card (Card): The card being purchased.
         """
+
+        for index, res in enumerate(resources):
+            if res>0:
+                try:
+                    self.locations[res+1].change_total_resources(1)
+                except:
+                    raise Exception(f"{res} {self.currrent_type_of}Trying to return resource to invalid location")
+        self.current_player.lose_resources(resources)
         # Find and remove the card
         for i, c in enumerate(self.cards):
             if c is card:
@@ -701,6 +752,10 @@ class Game:
         flat_state.append(available_workers)
         flat_state.append(self.current_player.get_vp())
 
+        # After existing scalars
+        food_deficit = max(0, total_workers - wheat - resources[0])
+        flat_state.append(food_deficit)  # Network can see "I need X more food"
+
         # === Resources (5) ===
         flat_state.extend(resources)
 
@@ -781,8 +836,16 @@ class Game:
         flat_state.append(self.current_type_of_action)
         flat_state.extend(self.current_action_data)
 
-        # === Total (146) ===
+        
+
+        # === Total (147) ===
         return np.array(flat_state, dtype=np.float32)
+    
+    def check_if_can_buy(self, action):
+        for index, location in enumerate(self.cards + self.buildings):
+            if location is not None and location.is_able_to_buy(self.current_player.resources) and location.can_place():
+                return [8+index,1,0,0,0,0,0]
+        return action
 
     def play_step(self, action_index: int):
 
@@ -790,8 +853,9 @@ class Game:
 
         player_active = self.current_player
         current_score = self.current_player.get_score()
-        current_vp = self.current_player.get_vp()
+        action_type_at_decision = self.current_type_of_action
         if self.current_type_of_action == 1:
+            #action = self.check_if_can_buy(action)
             self.locations[action[0]].place(self.current_player_idx, action[1])
             self.current_player.available_workers -= action[1]
             if not self.round_not_over():
@@ -805,18 +869,13 @@ class Game:
         elif self.current_type_of_action == 3:
             location = self.locations[self.current_action_data[0]]
             can_afford = location.is_able_to_buy(self.current_player.resources)
-            choice = "BUY" if action[0] == 1 else "SKIP"
-            resources = {k: v for k, v in self.current_player.resources.items() if k != 2}
-            print(f"  Buy/Skip: {choice}, can_afford={can_afford}, resources={resources}")
-            if action[0] == 1:  # Buy
-                location = self.locations[self.current_action_data[0]]
+            choice = True if action[0] == 1 else False
+            if choice:  # Buy
                 if isinstance(location, CertainBuilding):
                     self.buy_building(self.current_action_data[0], location.resources)
                     self.resolve_locations()
                 elif isinstance(location, Card):
-                    self.buy_card(location)
-                    self.apply_card_effect(location)
-                    self.resolve_locations()
+                    self.current_type_of_action = 4
                 else:  # FlexBuilding
                     self.current_type_of_action = 4
             else:
@@ -825,29 +884,28 @@ class Game:
         elif self.current_type_of_action == 4:
             location = self.locations[self.current_action_data[0]]
             if isinstance(location, Card):
-                self.buy_card(location)
                 self.apply_card_effect(location)
-                self.current_action_data = [0,0,0,0]
-                self.resolve_locations()
+                self.buy_card(location, action)
+                if self.current_type_of_action != 6 and self.current_type_of_action != 2 and self.current_type_of_action != 5:
+                    self.resolve_locations()
             else:
                 self.buy_building(self.current_action_data[0], action)
                 self.current_action_data = [0,0,0,0]
                 self.resolve_locations()
         elif self.current_type_of_action == 5:
-            self.current_player.get_reward(action[0])
+            self.get_reward(action[0])
             self.current_action_data.remove(action[0])
             self.next_player()
             if self.current_action_data:
                 self.resolve_locations()
         elif self.current_type_of_action == 6:
         # Choose 2 resources: action = [resource1, resource2, 0, 0, 0, 0, 0]
-            self.current_player.get_resources(action[0], 1)
-            self.current_player.get_resources(action[1], 1)
+            self.get_2_resources(action[0], action[1])
             self.resolve_locations()
-        reward = self.calculate_reward(current_score, player_active.get_score(), player_active)
-        return reward, self.game_end, player_active.get_vp()
-    
-    def calculate_reward(self, past_score, current_score, player_active):
+        reward = self.calculate_reward(action, player_active, action_type_at_decision, current_score, player_active.get_score())
+        return reward, self.game_end, self.round
+
+    def calculate_reward(self, action, player_active, action_type_at_decision, past_score, current_score):
         """
         Improved reward function with dense shaping signals.
 
@@ -859,57 +917,35 @@ class Game:
         """
 
         # ===== PRIMARY: Victory Point Change =====
-        vp_delta = current_score[3] - past_score[3]
-        reward = vp_delta * 2.0  # Amplify VP signal - this is what matters
-
-        # ===== STARVATION RISK PENALTY =====
-        food = current_score[0][2]
-        wheat = current_score[1] - past_score[1]
-        workers = current_score[2] - current_score[2]
-
-        # Sustainable food = wheat covers workers, so only need buffer for variance
-        food_needed_next_round = max(0, workers - wheat)
-        food_surplus = food - food_needed_next_round
-
-        if food_surplus < 0:
-            # Imminent starvation - harsh penalty
-            reward -= 10
-        elif food_surplus < 3:
-            # Risky - mild penalty  
-            reward -= 2
-
-        # ===== WORKER/WHEAT IMBALANCE PENALTY =====
-        # Penalize having more workers than wheat can sustain
-        # This teaches: get wheat BEFORE getting workers
-        worker_wheat_gap = workers - wheat
-        if worker_wheat_gap > 6:
-            reward -= (worker_wheat_gap - 6) * 1.5  # -1.5 per excess worker
-
-        # ===== REWARD FOR STARVATION IMMUNITY =====
-        # Bonus if wheat >= workers (never need to worry about food)
-        if wheat >= workers:
-            reward += 1.0
-
+        reward = 0
         
+        # 1. VP change (keep this)
+        vp_delta = current_score[3] - past_score[3]
+        reward += vp_delta * 1
+
+        if self.round > 10:
+            reward -= (self.round - 10) *.5
+
+        if player_active.resources[2] < player_active.total_workers - player_active.wheat:
+            reward -= 40
+
         # ===== END OF GAME BONUS/PENALTY =====
         if self.game_end:
             final_vp = current_score[3]
 
-            res = sum(r for r in current_score[0])
-
             # Tiered bonuses for good scores
-            if final_vp >= 0:
+            if final_vp >= 200:
+                reward += 200
+            if final_vp >= 100:
                 reward += 100
-            elif final_vp >= -30:
-                reward += 40
-            elif final_vp >= -60:
-                reward += 15
-            elif final_vp >= -100:
-                reward += 5
+            if final_vp >= 0:
+                reward += 10
 
-            # Light penalty for wasted resources at end
-            reward -= (res) * 0.05
-
+            if self.round < 50:
+                reward += 200
+        
+        if current_score[1]>current_score[2]:
+            reward -= 50
         return reward
 
 

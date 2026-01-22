@@ -73,6 +73,13 @@ class Card(Area):
         self.data = data if data is not None else {}
         self.painting = painting
         self.multiplier = multiplier
+        
+
+    def __str__(self):
+        return super().__str__() + f" Card(type={self.card_type}, cost={self.cost})"
+    
+    def __repr__(self) -> str:
+        return f"Card({self.card_type}, cost={self.cost}, card_data ={self.data}, painting={self.painting}, multiplier={self.multiplier})"
     
     @property
     def card_type_num(self) -> int:

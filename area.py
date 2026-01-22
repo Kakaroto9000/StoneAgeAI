@@ -166,8 +166,8 @@ class Gathering(Area):
         capacity (int): Maximum workers allowed (inherited from Area).
         occupants (dict[int, int]): Worker placement by player (inherited from Area).
     """
-    
-    def __init__(self, capacity: int, resource_type: str) -> None:
+
+    def __init__(self, capacity: int, resource_type: str, total_resources: int) -> None:
         """
         Initialize a Gathering area for collecting a specific resource.
         
@@ -178,7 +178,26 @@ class Gathering(Area):
                                 but this parameter suggests string usage.
         """
         self.resource_type = resource_type
+        self.total_resources = total_resources
         super().__init__(capacity)
+    
+    def change_total_resources(self, amount: int) -> None:
+        """
+        Change the total resources available in this gathering area.
+        
+        Args:
+            amount (int): Amount to adjust total resources by (can be positive or negative).
+        """
+        self.total_resources += amount
+
+    def get_total_resources(self) -> int:
+        """
+        Get the current total resources available in this gathering area.
+        
+        Returns:
+            int: The total amount of resources currently available here.
+        """
+        return self.total_resources
 
     def name(self) -> str:
         """

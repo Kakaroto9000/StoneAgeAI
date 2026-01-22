@@ -59,46 +59,46 @@ def create_card_deck(shuffle: bool = True) -> list[Card]:
         # === FOOD CARDS (7 cards) ===
         Card("add_resource", cost=1, data={"resources": 2, "amount": 7}, painting=2),   # 7 food
         Card("add_resource", cost=1, data={"resources": 2, "amount": 2}, multiplier=22),   # 2 food
-        Card("add_resource", cost=2, data={"resources": 2, "amount": 4}, multiplier=21),   # 4 food
-        Card("add_resource", cost=2, data={"resources": 2, "amount": 5}, painting=4),   # 5 food
-        Card("add_resource", cost=3, data={"resources": 2, "amount": 3}, painting=5),   # 3 food
-        Card("add_resource", cost=3, data={"resources": 2, "amount": 1}, painting=5),   # 1 food
-        Card("add_resource", cost=4, data={"resources": 2, "amount": 3}, multiplier=42),   # 3 food
-        
+        Card("add_resource", cost=1, data={"resources": 2, "amount": 4}, multiplier=21),   # 4 food
+        Card("add_resource", cost=1, data={"resources": 2, "amount": 5}, painting=4),   # 5 food
+        Card("add_resource", cost=1, data={"resources": 2, "amount": 3}, painting=5),   # 3 food
+        Card("add_resource", cost=1, data={"resources": 2, "amount": 1}, painting=5),   # 1 food
+        Card("add_resource", cost=1, data={"resources": 2, "amount": 3}, multiplier=42),   # 3 food
+
         # === RESOURCE CARDS (5 cards) ===
         Card("add_resource", cost=1, data={"resources": 4, "amount": 1}, multiplier=41),   # 1 stone
-        Card("add_resource", cost=2, data={"resources": 4, "amount": 2}, painting=1),   # 2 stones
-        Card("add_resource", cost=2, data={"resources": 4, "amount": 1}, multiplier=31),   # 1 stone
-        Card("add_resource", cost=3, data={"resources": 6, "amount": 1}, multiplier=31),   # 1 gold
-        Card("add_resource", cost=3, data={"resources": 5, "amount": 1}, multiplier=32),   # 1 brick
+        Card("add_resource", cost=1, data={"resources": 4, "amount": 2}, painting=1),   # 2 stones
+        Card("add_resource", cost=1, data={"resources": 4, "amount": 1}, multiplier=31),   # 1 stone
+        Card("add_resource", cost=1, data={"resources": 6, "amount": 1}, multiplier=31),   # 1 gold
+        Card("add_resource", cost=1, data={"resources": 5, "amount": 1}, multiplier=32),   # 1 brick
         
         # === RESOURCES WITH DICE (3 cards) ===
-        Card("resources_with_dice", cost=2, data={"resource_type": 6}, painting=6),     # gold
-        Card("resources_with_dice", cost=3, data={"resource_type": 3}, multiplier=32),     # wood
-        Card("resources_with_dice", cost=3, data={"resource_type": 4}, multiplier=31),     # stone
+        Card("resources_with_dice", cost=1, data={"resource_type": 6}, painting=6),     # gold
+        Card("resources_with_dice", cost=1, data={"resource_type": 3}, multiplier=32),     # wood
+        Card("resources_with_dice", cost=1, data={"resource_type": 4}, multiplier=31),     # stone
         
         # === VICTORY POINTS (3 cards) ===
-        Card("add_vp", cost=2, data={"vp": 3}, multiplier=23),   # 3 VP
-        Card("add_vp", cost=3, data={"vp": 3}, painting=7),   # 3 VP
-        Card("add_vp", cost=4, data={"vp": 3}, painting=7),   # 3 VP
+        Card("add_vp", cost=1, data={"vp": 3}, multiplier=23),   # 3 VP
+        Card("add_vp", cost=1, data={"vp": 3}, painting=7),   # 3 VP
+        Card("add_vp", cost=1, data={"vp": 3}, painting=7),   # 3 VP
         
         # === TOOL CARD (1 card) ===
-        Card("add_tool", cost=2, painting=6),   # +1 tool
+        Card("add_tool", cost=1, painting=6),   # +1 tool
         
         # === WHEAT/FOOD PRODUCTION CARDS (2 cards) ===
-        Card("add_wheat", cost=2, multiplier=41),  # +1 food production
-        Card("add_wheat", cost=3, painting=8),  # +1 food production
+        Card("add_wheat", cost=1, multiplier=41),  # +1 food production
+        Card("add_wheat", cost=1, painting=8),  # +1 food production
         
         # === DRAW CARD (1 card) ===
         Card("draw_card", cost=3, painting=3),  # draw extra card
         
         # === ONE-USE TOOL CARDS (3 cards) ===
-        Card("one_use_tool", cost=1, data={"tool_value": 4}, multiplier=11),  # 4 tools
-        Card("one_use_tool", cost=2, data={"tool_value": 3}, multiplier=11),  # 3 tools  
-        Card("one_use_tool", cost=3, data={"tool_value": 2}, multiplier=12),  # 2 tools
+        Card("one_use_tool", cost=1, data={"tool_value": 4}, multiplier=11),  # 4 tool
+        Card("one_use_tool", cost=1, data={"tool_value": 3}, multiplier=11),  # 3 tool  
+        Card("one_use_tool", cost=1, data={"tool_value": 2}, multiplier=12),  # 2 tool
         
         # === ANY 2 RESOURCES (1 card) ===
-        Card("any_2_resources", cost=2, painting=4),  # 2 resources of choice
+        Card("any_2_resources", cost=1, painting=4),  # 2 resources of choice
     ]
     
     if shuffle:

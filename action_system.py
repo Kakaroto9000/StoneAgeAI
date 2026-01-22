@@ -96,8 +96,8 @@ class ActionSystem:
         actions.append([1, 0, 0, 0, 0, 0, 0])
         
         # ============================================================
-        # RESOURCE SPENDING: (4, wood, stone, clay, gold)
-        # Output format: [wood, stone, clay, gold, 0, 0, 0]
+        # RESOURCE SPENDING: (4, wood, clay, stone, gold)
+        # Output format: [res_type, res_type, res_type, res_type, res_type, res_type, res_type]
         # ============================================================
         self.RESOURCES_START = len(actions)
         
@@ -109,7 +109,8 @@ class ActionSystem:
                 # Avoid duplicates (same resource counts can come from different combos)
                 if key not in action_to_index:
                     action_to_index[key] = len(actions)
-                    actions.append(counts + [0, 0, 0])
+                    # Store types directly, padded to length 7
+                    actions.append(list(combo) + [0] * (7 - len(combo)))
         
         # ============================================================
         # DICE SELECTION: (5, die_value)

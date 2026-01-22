@@ -20,7 +20,7 @@ from helper import plot
 
 # Configuration constants for training
 MAX_MEMORY = 1000000  # Maximum size of experience replay buffer
-BATCH_SIZE = 2048    # Number of experiences sampled per training batch
+BATCH_SIZE = 512    # Number of experiences sampled per training batch
 LR = 0.001          # Learning rate for the neural network optimizer
 
 
@@ -53,13 +53,13 @@ class Agent:
         """
         self.n_games = 0  # Counter for number of games played
         self.epsilon = 0  # Exploration rate (randomness) - starts at 0, increases with games
-        self.gamma = 0.9  # Discount factor for future rewards - TODO: set to appropriate value (e.g., 0.9)
+        self.gamma = 0.992  # Discount factor for future rewards 
         
         # Experience replay buffer: stores transitions (s, a, r, s', done)
         # When full, oldest experiences are automatically removed
         self.memory = deque(maxlen=MAX_MEMORY)
         
-        self.model = Linear_QNet(147, 512, num_actions)      # TODO: Initialize neural network model (e.g., DQN network)
+        self.model = Linear_QNet(148, 512, num_actions)      # TODO: Initialize neural network model (e.g., DQN network)
 
         model_path = './model/model.pth'
         if os.path.exists(model_path):
@@ -148,7 +148,7 @@ class Agent:
     def get_action(self, state: np.ndarray, game: Game) -> np.ndarray:
         """
         Choose an action based on epsilon-greedy exploration strategy.
-        
+         
         With probability epsilon, choose a random action (exploration).
         Otherwise, use the neural network to predict the best action (exploitation).
         Epsilon decreases over time, shifting from exploration to exploitation.
@@ -162,7 +162,7 @@ class Agent:
         """
         from model import device
         # Decrease epsilon over games - more exploration early, more exploitation later
-        self.epsilon = max(10, 100 - self.n_games/5)  # Always keep some exploration
+        self.epsilon = max(5, 100 - self.n_games/20)  # Always keep some exploration
         
         # Initialize action vector (8 possible actions/locations)
         final_move = [0, 0, 0, 0, 0, 0, 0, 0]
@@ -219,38 +219,44 @@ def train() -> None:
 
         final_move = agent.get_action(state_old, game)
         
-        reward, done, vp = game.play_step(final_move)
+        reward, done, action = game.play_step(final_move)
         state_new = agent.get_state(game)
 
         # Train only on Player 0's experiences
         if current_player == 0:
-            agent.train_short_memory(state_old, final_move, reward, state_new, done)
-            agent.remember(state_old, final_move, reward, state_new, done)
+            agent.train_short_memory(state_old, action, reward, state_new, done)
+            agent.remember(state_old, action, reward, state_new, done)
 
         if done:
-            
-            p0_vp = game.players[0].get_vp()
-            p0 = game.players[0]
-            print(f"P0 end: food={p0.resources[2]}, wheat={p0.wheat}, workers={p0.total_workers}, vp={p0.get_vp()}")
+            total_vp = 0
+            current_vp_record = -10000
+            round = game.round
+            for player in game.players:
+                player_vp = player.get_vp()
+                total_vp += player_vp
+                cards_owned = len(player.card_effects[0]) + len(player.card_effects[1])
+                print(f"player end: food={player.resources[2]}, wheat={player.wheat}, "
+                f"workers={player.total_workers}, vp={player.get_vp()}, "
+                f"buildings={player.building_num}, cards={cards_owned}, "
+                f"tools={sum(t[0] for t in player.tools)}, "
+                f"multipliers={list(player.multipliers.values())},"
+                f"rouds={game.round}),"
+                f"resources = {player.resources}")
+                if player_vp > current_vp_record:
+                    current_vp_record = player_vp
 
             game.reset()
             agent.n_games += 1
             agent.train_long_memory()
 
             # Get Player 0's final VP (not vp from play_step)
-            if done:
-                cards_owned = len(p0.card_effects[0]) + len(p0.card_effects[1])
-                print(f"P0 end: food={p0.resources[2]}, wheat={p0.wheat}, "
-                f"workers={p0.total_workers}, vp={p0.get_vp()}, "
-                f"buildings={p0.building_num}, cards={cards_owned}, "
-                f"tools={sum(t[0] for t in p0.tools)}, "
-                f"multipliers={list(p0.multipliers.values())}")
 
-            if p0_vp > record:
-                record = p0_vp
+            if current_vp_record > record:
+                record = current_vp_record
                 agent.model.save()
 
-            print(f'Game {agent.n_games}, vp {p0_vp}, Record {record}')
+
+            print(f'Game {agent.n_games}, vp {current_vp_record}, Record {record}, mean {total_vp/len(game.players)}')
 
             """plot_vps.append(vp)
             total_vp += vp

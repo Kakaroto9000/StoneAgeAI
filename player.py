@@ -54,6 +54,7 @@ class Player:
         self.available_workers = workers
         self.vp = 0  # Victory points
         self.vp_buildings = 0  # Victory points from buildings
+        self.people_feed = False
         
         # Resource inventory: food, wood, stone, clay, gold
         self.resources = {
@@ -91,25 +92,6 @@ class Player:
             3: 0,    # VP per worker
             4: 0,      # VP per wheat
         }
-
-
-    def get_resource_with_die(self, resource_type: int, dice_roll: int, tools: list[int]) -> None:
-        """
-        Gain resources based on a dice roll.
-        
-        The amount gained is dice_roll divided by resource_type (in Stone Age,
-        higher numbers = harder to gather). Tools modify the dice result before
-        division.
-        
-        Args:
-            resource_type (int): Type of resource to gather (2-6).
-            dice_roll (int): Sum of dice roll (determines base amount).
-        """
-        # Decide if using tools to improve this gathering
-        tools_used = self.use_tool(tools)
-        # Calculate gained amount: dice value / resource type (easier with higher dice)
-        gained = (dice_roll + tools_used) // resource_type
-        self.resources[resource_type] += gained
         
     def use_tool(self, tools):
         used_tools_sum = 0
@@ -127,23 +109,6 @@ class Player:
         return used_tools_sum
                 
 
-    def get_reward(self, reward: int) -> None:
-        """
-        Apply a reward to the player (resources, tools, or wheat).
-        
-        Args:
-            reward (int): Reward type (1-6).
-                         1-4: Resource types
-                         5: Tool
-                         6: Wheat
-        """
-        if 1 <= reward <= 4:
-            self.get_resources(reward+2)
-        elif reward == 5:
-            self.get_tool()
-        else:
-            self.get_wheat()
-
     def get_resources(self, type: int, amount: int = 1) -> None:
         """
         Add resources to player's inventory.
@@ -152,7 +117,8 @@ class Player:
             type (int): Resource type (2-6).
             amount (int): Quantity to add (default: 1).
         """
-        self.resources[type] += amount
+        if type in self.resources:
+            self.resources[type] += amount
 
     def lose_resources(self, resources: list[int]) -> None:
         """
@@ -165,7 +131,8 @@ class Player:
             resources (list[int]): List of resource types to lose (one per element).
         """
         for resource in resources:
-            self.resources[resource] -= 1
+            if resource in self.resources:
+                self.resources[resource] -= 1
 
     def get_tool(self) -> None:
         """
@@ -276,14 +243,14 @@ class Player:
         return vp
     
     def get_score(self) -> list[int]:
-        return [self.resources, self.wheat, self.total_workers, self.get_vp(), self.tools, sum(v for v in self.one_use_tools), self.multipliers.values()]
+        return [self.resources, self.wheat, self.total_workers, self.get_vp(), sum(v[0] for v in self.tools), sum(v for v in self.one_use_tools), sum(v for v in self.multipliers.values()), self.vp_buildings]
 
     def feed(self) -> None:
         food_available = self.resources[2]
-        food_needed = max(0, self.total_workers - self.wheat)  # Can't be negative
-    
+        food_needed = max(0, self.total_workers - self.wheat)
+
         if food_available < food_needed:
-            self.vp -= 10
-    
-        # Consume only what's needed
+            self.vp -= 10  # Penalty for not feeding workers
+
+        # Always consume food (up to what's available)
         self.resources[2] = max(0, self.resources[2] - food_needed)

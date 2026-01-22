@@ -83,8 +83,8 @@ class CertainBuilding(Building):
         
         Args:
             resources (list[int]): List of resource types required.
-                                  Example: [6, 6, 3] requires three resources
-                                  of types 6, 6, and 3 respectively.
+            Example: [6, 6, 3] requires three resources
+            of types 6, 6, and 3 respectively.
         """
         super().__init__()
         self.resources = resources
