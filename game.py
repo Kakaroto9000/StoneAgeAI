@@ -15,6 +15,7 @@ from importlib import resources
 from itertools import combinations_with_replacement
 from typing import List, Dict, Optional, Any, Union
 import random
+from matplotlib.style import available
 import numpy as np
 from action_system import ActionSystem, MaskGenerator
 
@@ -165,6 +166,8 @@ class Game:
             if len(deck) == 0 and self.buildings[i] is None:
                 return True
         if self.round >= 50:
+            return True
+        if any(p.vp<-10 for p in self.players):
             return True
         return False
                 
@@ -422,12 +425,15 @@ class Game:
         # Calculate gained amount: dice value / resource type (easier with higher dice)
         gained = (dice_roll + tools_used) // resource_type
 
+        available = self.locations[resource_type+1].get_total_resources()
+        #print(f"Resource {resource_type}: wanted {gained}, available {available}")
+
         gained = min(gained, self.locations[resource_type+1].get_total_resources())
         self.locations[resource_type+1].change_total_resources(-gained)
 
         self.current_player.get_resources(resource_type, gained)
 
-
+        #print(f"After gathering: {self.locations[resource_type+1].get_total_resources()}")
 
         if self.current_type_of_action == 2:
             self.locations[self.current_action_data[0]+1].occupants[self.current_player_idx] = 0
@@ -851,7 +857,7 @@ class Game:
 
         action = self.action_system.get_action(action_index)
 
-        player_active = self.current_player
+        player_active = self.current_player_idx
         current_score = self.current_player.get_score()
         action_type_at_decision = self.current_type_of_action
         if self.current_type_of_action == 1:
@@ -902,7 +908,7 @@ class Game:
         # Choose 2 resources: action = [resource1, resource2, 0, 0, 0, 0, 0]
             self.get_2_resources(action[0], action[1])
             self.resolve_locations()
-        reward = self.calculate_reward(action, player_active, action_type_at_decision, current_score, player_active.get_score())
+        reward = self.calculate_reward(action, player_active, action_type_at_decision, current_score, self.players[player_active].get_score())
         return reward, self.game_end, self.round
 
     def calculate_reward(self, action, player_active, action_type_at_decision, past_score, current_score):
@@ -919,6 +925,7 @@ class Game:
         # ===== PRIMARY: Victory Point Change =====
         reward = 0
         
+        player = self.players[player_active]
         # 1. VP change (keep this)
         vp_delta = current_score[3] - past_score[3]
         reward += vp_delta * 1
@@ -926,8 +933,22 @@ class Game:
         if self.round > 10:
             reward -= (self.round - 10) *.5
 
-        if player_active.resources[2] < player_active.total_workers - player_active.wheat:
-            reward -= 40
+        if self.current_type_of_action == 1:
+            if current_score[0][2]+current_score[1]>= current_score[2]:
+                reward +=10
+            else:
+                reward -=10
+
+        if action_type_at_decision == 1:
+            if self.locations[1].is_occupied(player_active):
+                reward += 10
+
+        if current_score[3] >= 200:
+            reward += 30
+        elif current_score[3] >= 100:
+            reward += 20
+        elif current_score[3] > 50:
+            reward += 10
 
         # ===== END OF GAME BONUS/PENALTY =====
         if self.game_end:
@@ -936,10 +957,12 @@ class Game:
             # Tiered bonuses for good scores
             if final_vp >= 200:
                 reward += 200
-            if final_vp >= 100:
+            elif final_vp >= 100:
                 reward += 100
-            if final_vp >= 0:
+            elif final_vp > 0:
                 reward += 10
+            elif final_vp < 0:
+                reward = -100
 
             if self.round < 50:
                 reward += 200

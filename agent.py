@@ -162,7 +162,7 @@ class Agent:
         """
         from model import device
         # Decrease epsilon over games - more exploration early, more exploitation later
-        self.epsilon = max(5, 100 - self.n_games/20)  # Always keep some exploration
+        self.epsilon = max(0, 100 - self.n_games/20)  # Always keep some exploration
         
         # Initialize action vector (8 possible actions/locations)
         final_move = [0, 0, 0, 0, 0, 0, 0, 0]
