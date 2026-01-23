@@ -127,7 +127,7 @@ class Game:
             Utility("Farm", 1),           # Gain wheat
             Utility("House", 2),          # Gain workers
             Utility("ToolShop", 1),       # Gain tools
-            Gathering(40, 2, 75),             # Food (resource 2)
+            Gathering(40, 2, 200),             # Food (resource 2)
             Gathering(7, 3, 28),              # Wood (resource 3)
             Gathering(7, 4, 18),              # Stone (resource 4)
             Gathering(7, 5, 12),              # Clay (resource 5)
@@ -165,9 +165,9 @@ class Game:
         for i, deck in self.buildings_in_deck.items():
             if len(deck) == 0 and self.buildings[i] is None:
                 return True
-        if self.round >= 50:
+        if self.round >= 25:
             return True
-        if any(p.vp<-10 for p in self.players):
+        if any(p.vp<0 for p in self.players):
             return True
         return False
                 
@@ -516,7 +516,7 @@ class Game:
         Penalty of -10 VP if player cannot afford to feed everyone.
         """
         for player in self.players:
-            player.feed()
+            self.locations[3].total_resources += player.feed()
 
     def get_new_buildings_and_cards(self) -> None:
         """
@@ -927,28 +927,16 @@ class Game:
         
         player = self.players[player_active]
         # 1. VP change (keep this)
-        vp_delta = current_score[3] - past_score[3]
-        reward += vp_delta * 1
+        vp_delta = current_score[3]
+        reward += vp_delta * 5
 
-        if self.round > 10:
-            reward -= (self.round - 10) *.5
-
-        if self.current_type_of_action == 1:
-            if current_score[0][2]+current_score[1]>= current_score[2]:
-                reward +=10
-            else:
-                reward -=10
-
-        if action_type_at_decision == 1:
-            if self.locations[1].is_occupied(player_active):
-                reward += 10
 
         if current_score[3] >= 200:
-            reward += 30
+            reward += 70
         elif current_score[3] >= 100:
-            reward += 20
+            reward += 40
         elif current_score[3] > 50:
-            reward += 10
+            reward += 30
 
         # ===== END OF GAME BONUS/PENALTY =====
         if self.game_end:
@@ -961,19 +949,14 @@ class Game:
                 reward += 100
             elif final_vp > 0:
                 reward += 10
-            elif final_vp < 0:
+            elif final_vp <= 0:
                 reward = -100
+    
 
-            if self.round < 50:
-                reward += 200
-        
-        if current_score[1]>current_score[2]:
-            reward -= 50
         return reward
 
-
     def check_if_any_uncollectedhumans_left(self):
-        return any(loc.is_occupied(self.current_player_idx) for loc in self.locations if loc is not None)
+        return not all(loc.is_empty() for loc in self.locations if loc is not None)
     # TODO: Implement missing methods
     # - reset(): Reset game state for next episode
     # - get_random_legal_action(): Better random move selection

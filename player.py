@@ -254,3 +254,4 @@ class Player:
 
         # Always consume food (up to what's available)
         self.resources[2] = max(0, self.resources[2] - food_needed)
+        return min(food_available, food_needed)

@@ -53,7 +53,7 @@ class Agent:
         """
         self.n_games = 0  # Counter for number of games played
         self.epsilon = 0  # Exploration rate (randomness) - starts at 0, increases with games
-        self.gamma = 0.992  # Discount factor for future rewards 
+        self.gamma = 0.985  # Discount factor for future rewards 
         
         # Experience replay buffer: stores transitions (s, a, r, s', done)
         # When full, oldest experiences are automatically removed
@@ -162,7 +162,7 @@ class Agent:
         """
         from model import device
         # Decrease epsilon over games - more exploration early, more exploitation later
-        self.epsilon = max(0, 100 - self.n_games/20)  # Always keep some exploration
+        self.epsilon = max(5, 100 - self.n_games/20)  # Always keep some exploration
         
         # Initialize action vector (8 possible actions/locations)
         final_move = [0, 0, 0, 0, 0, 0, 0, 0]
@@ -223,9 +223,8 @@ def train() -> None:
         state_new = agent.get_state(game)
 
         # Train only on Player 0's experiences
-        if current_player == 0:
-            agent.train_short_memory(state_old, action, reward, state_new, done)
-            agent.remember(state_old, action, reward, state_new, done)
+        agent.train_short_memory(state_old, action, reward, state_new, done)
+        agent.remember(state_old, action, reward, state_new, done)
 
         if done:
             total_vp = 0
