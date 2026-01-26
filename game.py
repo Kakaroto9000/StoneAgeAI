@@ -752,6 +752,7 @@ class Game:
         flat_state = []
 
         # === Scalars (5) ===
+        flat_state.append(self.current_player_idx)
         flat_state.append(self.round)
         flat_state.append(wheat)
         flat_state.append(total_workers)
@@ -802,6 +803,10 @@ class Game:
                 # Null location: 0 workers from each player
                 flat_state.extend([0, 0, 0, 0])
 
+        
+        for i in range(3,8):
+            flat_state.append(self.locations[i].get_total_resources())
+
         # === Building deck sizes (4) ===
         for deck in self.buildings_in_deck.values():
             flat_state.append(len(deck))
@@ -830,12 +835,15 @@ class Game:
                         card_data.append(0)
                 else:
                     card_data = [0,0]
-                
+
                 flat_state.extend([
                     card.card_type_num,
                     card.cost,
-                    card.painting or 0
                 ])
+                if card.multiplier is not None:
+                    flat_state.append(card.multiplier)
+                else:
+                    flat_state.append(card.painting)
                 flat_state.extend(card_data)
 
         # === Action encoding (5) ===
@@ -844,7 +852,7 @@ class Game:
 
         
 
-        # === Total (147) ===
+        # === Total (154) ===
         return np.array(flat_state, dtype=np.float32)
     
     def check_if_can_buy(self, action):
@@ -928,15 +936,24 @@ class Game:
         player = self.players[player_active]
         # 1. VP change (keep this)
         vp_delta = current_score[3]
+        resources = current_score[0]
         reward += vp_delta * 5
 
-
-        if current_score[3] >= 200:
-            reward += 70
-        elif current_score[3] >= 100:
-            reward += 40
-        elif current_score[3] > 50:
+        if any(b.is_able_to_buy(resources) and b.occupants.get(player_active, 0) > 0 for b in self.buildings + self.cards if b is not None):
             reward += 30
+        
+        if current_score[0][2] > 15 and self.locations[3].occupants[player_active]>0:
+            reward -= 40
+
+        if current_score[3] >= 100:
+            reward += 30
+        elif current_score[3] >= 50:
+            reward += 10
+        elif current_score[3] < 0:
+            reward -= 20
+        if current_score[0][2] > 20:
+            reward -= 40
+        reward -= max(0,current_score[0][2]- 14)*4 
 
         # ===== END OF GAME BONUS/PENALTY =====
         if self.game_end:

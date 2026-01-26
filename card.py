@@ -50,7 +50,7 @@ class Card(Area):
     """
     
     def __init__(self, card_type: str, cost: int, data: Dict[str, int] = None, 
-                 painting: int = None, multiplier: str = None) -> None:
+                 painting: int = None, multiplier: int = None) -> None:
         """
         Initialize a Card with type, cost, and effects.
         

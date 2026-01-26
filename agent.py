@@ -59,15 +59,14 @@ class Agent:
         # When full, oldest experiences are automatically removed
         self.memory = deque(maxlen=MAX_MEMORY)
         
-        self.model = Linear_QNet(148, 512, num_actions)      # TODO: Initialize neural network model (e.g., DQN network)
-
+        self.model = Linear_QNet(154, 512, num_actions)      
         model_path = './model/model.pth'
         if os.path.exists(model_path):
             self.model.load_state_dict(torch.load(model_path))
             print("Loaded saved model!")
     
         self.trainer = QTrainer(self.model, lr=LR, gamma=self.gamma)
-        self.trainer = QTrainer(self.model, lr=LR, gamma = self.gamma)    # TODO: Initialize trainer class for optimization
+
 
     def get_state(self, game: Game) -> np.ndarray:
         """
@@ -212,6 +211,8 @@ def train() -> None:
     game.reset()
     agent = Agent(num_actions=game.action_system.NUM_ACTIONS)
     
+    number_of_games = 0
+
     # Main training loop
     while True:
         state_old = agent.get_state(game)
@@ -228,8 +229,8 @@ def train() -> None:
 
         if done:
             total_vp = 0
-            current_vp_record = -10000
             round = game.round
+            current_vp_record = -10000
             for player in game.players:
                 player_vp = player.get_vp()
                 total_vp += player_vp
@@ -243,6 +244,7 @@ def train() -> None:
                 f"resources = {player.resources}")
                 if player_vp > current_vp_record:
                     current_vp_record = player_vp
+            number_of_games += 1
 
             game.reset()
             agent.n_games += 1
@@ -253,15 +255,12 @@ def train() -> None:
             if current_vp_record > record:
                 record = current_vp_record
                 agent.model.save()
+            if number_of_games > 20000 and total_vp/len(game.players) > 0:
+                agent.model.save(file_name=f'model_{round}_games.pth')
+                number_of_games = 0
 
 
             print(f'Game {agent.n_games}, vp {current_vp_record}, Record {record}, mean {total_vp/len(game.players)}')
-
-            """plot_vps.append(vp)
-            total_vp += vp
-            mean_score = total_vp/agent.n_games
-            plot_mean_vps.append(mean_score)
-            plot(plot_vps, plot_mean_vps)"""
 
 
 if __name__ == '__main__':
