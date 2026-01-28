@@ -18,22 +18,7 @@ stone_age/
 ├── building.py   # Purchasable buildings
 ├── card.py       # Purchasable cards
 └── utility.py    # Special locations (farm, house, tool shop)
-Architecture
-┌─────────────────────────────────────────────────────────────────┐
-│                         TRAINING LOOP                           │
-│  ┌─────────┐    state     ┌─────────┐    action    ┌─────────┐ │
-│  │  Game   │─────────────▶│  Agent  │─────────────▶│  Game   │ │
-│  │ State   │              │  (DQN)  │              │play_step│ │
-│  └─────────┘              └─────────┘              └────┬────┘ │
-│       ▲                        │                        │      │
-│       │                   remember()                    │      │
-│       │                        │                        ▼      │
-│       │                        ▼               reward, done    │
-│       │                  ┌─────────┐                    │      │
-│       └──────────────────│ Memory  │◀───────────────────┘      │
-│                          │ Buffer  │                           │
-│                          └─────────┘                           │
-└─────────────────────────────────────────────────────────────────┘
+
 How It Works
 1. Game State → Neural Network Input
 The game state is flattened into a 143-element vector:
