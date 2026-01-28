@@ -255,7 +255,7 @@ def train() -> None:
             if current_vp_record > record:
                 record = current_vp_record
                 agent.model.save()
-            if number_of_games > 20000 and total_vp/len(game.players) > 0:
+            if number_of_games > 50000 and total_vp/len(game.players) > 0:
                 agent.model.save(file_name=f'model_{round}_games.pth')
                 number_of_games = 0
 

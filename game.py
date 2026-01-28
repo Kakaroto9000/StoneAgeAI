@@ -858,8 +858,8 @@ class Game:
     def check_if_can_buy(self, action):
         for index, location in enumerate(self.cards + self.buildings):
             if location is not None and location.is_able_to_buy(self.current_player.resources) and location.can_place():
-                return [8+index,1,0,0,0,0,0]
-        return action
+                return (True, index+8)
+        return (False, 0)
 
     def play_step(self, action_index: int):
 
@@ -869,7 +869,9 @@ class Game:
         current_score = self.current_player.get_score()
         action_type_at_decision = self.current_type_of_action
         if self.current_type_of_action == 1:
-            #action = self.check_if_can_buy(action)
+            if self.check_if_can_buy(action)[0]:
+                action_index = self.action_system.get_index(1, self.check_if_can_buy(action)[1], 1)
+                action = self.action_system.get_action(action_index)
             self.locations[action[0]].place(self.current_player_idx, action[1])
             self.current_player.available_workers -= action[1]
             if not self.round_not_over():
@@ -917,7 +919,7 @@ class Game:
             self.get_2_resources(action[0], action[1])
             self.resolve_locations()
         reward = self.calculate_reward(action, player_active, action_type_at_decision, current_score, self.players[player_active].get_score())
-        return reward, self.game_end, self.round
+        return reward, self.game_end, action_index
 
     def calculate_reward(self, action, player_active, action_type_at_decision, past_score, current_score):
         """
