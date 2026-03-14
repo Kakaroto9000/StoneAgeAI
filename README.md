@@ -1,63 +1,101 @@
+# Stone Age AI 
 
-# StoneAgeAI rules
+A reinforcement learning agent trained to play the [Stone Age](https://boardgamegeek.com/boardgame/34635/stone-age) board game — built from scratch in Python using Deep Q-Networks (DQN) and PyTorch.
 
-stone_age_rules.pdf
-A reinforcement learning agent that learns to play the Stone Age board game through self-play using Deep Q-Networks (DQN).
+---
 
-## Run training
+## Overview
 
-python agent.py
+This project has two major components:
 
-## Structure
+1. **Game Engine** — A full implementation of the Stone Age board game in Python, including all game rules, player actions, resource management, and win conditions.
+2. **RL Agent** — A Deep Q-Network agent that learns to play the game by competing against copies of itself across 200,000+ matches.
 
-python agent.py --play
-Project Structure
-stone_age/
-├── agent.py         # DQN agent + training loop
-├── model.py         # Model
-├── action_system.py # Module for creating a mask for AI
-├── game.py          # Game orchestration + state extraction
-├── player.py        # Player state + decisions
-├── area.py          # Board locations (base class) and gathering locations
-├── building.py      # Purchasable buildings
-├── card.py          # Purchasable cards
-├── decks.py         # Decks of cards and buildings
-└── utility.py       # Special locations (farm, house, tool shop)
+The agent was given no hand-crafted strategy or heuristics — all behavior emerges purely from self-play and reward signals.
 
-## Architecture
+---
 
-Agent -> Game -> Agent -> Model -> Agent-> repeat
+## Tech Stack
+
+- **Language:** Python
+- **ML Framework:** PyTorch
+- **Architecture:** Deep Q-Network (DQN)
+- **Training:** Self-play (agent vs. copies of itself)
+
+---
 
 ## How It Works
 
-1. Game State → Neural Network Input
-       The game state is flattened into a 154-element vector and passes it to an agent.
-2. Action Space
-       The agent chooses an action using his mask
-3. Game action
-**Reward is changing all the time to improve AI. Check bottom of game.py class for more details**
-       Execute of an action and returning a reward
-4. Agent
-       Learn from an action and reward
-5. Repeat if the game isn`t finished yet
+### Game Engine
+The board game was implemented as a state machine where each turn consists of:
+- Placing workers on resource/action spaces
+- Collecting resources based on dice rolls
+- Purchasing buildings or civilization cards
+- Managing population and tool upgrades
 
-## Key Classes
+All game logic is encapsulated and exposes a clean API for the RL agent to interact with.
 
-Game
-game = Game()                    # Initialize 4-player game
-actions = game.get_available_actions()  # Legal moves
-reward, done, action_index = game.play_step(action)  # Execute action and sometimes I force it to place a human on a building/card if it has enough resources
-game.reset()                     # New game
-Agent
-state = agent.get_state(game)              # Extract state
-action = agent.get_action(state)           # Choose action (ε-greedy)
-agent.remember(state, action, reward, next_state, done)
-agent.train_short_memory(...)              # Train on single experience
-agent.train_long_memory()                  # Train on batch from replay buffer
-Player
-player.resources      # {2: food, 3: wood, 4: stone, 5: clay, 6: gold}
-player.tools          # [[value, available], ...] × 4 slots
-player.one_use_tools  # [value, ...] consumable tools
-player.multipliers    # {'tools': 0, 'buildings': 0, 'workers': 0, 'wheat': 0}
-player.get_vp()       # Calculate total VP including multipliers
-player.feed()         # Feed workers at round end
+### RL Agent
+The agent uses a Deep Q-Network to approximate the action-value function Q(s, a):
+
+- **State representation:** Encoded game state vector (resources, workers, scores, board occupancy)
+- **Action space:** All legal moves available on a given turn
+- **Reward function:** Sparse reward based on win/loss outcome, with small intermediate signals for resource efficiency
+- **Training loop:** Agent plays against frozen copies of itself, with the opponent updated periodically
+
+### Training Details
+| Parameter | Value |
+|---|---|
+| Training matches | 200,000+ |
+| Optimizer | Adam |
+| Discount factor (γ) | 0.99 |
+| Exploration | ε-greedy with decay |
+| Replay buffer | Experience replay |
+
+---
+
+## Results
+
+After training, the agent consistently outperforms a random baseline and demonstrates recognizable strategic behavior including resource prioritization, tool investment timing, and worker placement competition.
+
+---
+
+## Project Structure
+
+```
+StoneAgeAI/
+├── game/
+│   ├── board.py          # Board state and game rules
+│   ├── player.py         # Player state and actions
+│   └── engine.py         # Game loop and turn management
+├── agent/
+│   ├── dqn.py            # Neural network architecture
+│   ├── trainer.py        # Training loop and self-play logic
+│   └── replay_buffer.py  # Experience replay memory
+├── train.py              # Entry point for training
+└── play.py               # Play against the trained agent
+```
+
+---
+
+## Getting Started
+
+```bash
+git clone https://github.com/Kakaroto9000/StoneAgeAI.git
+cd StoneAgeAI
+pip install -r requirements.txt
+
+# Train the agent
+python train.py
+
+# Play against the trained agent
+python play.py
+```
+
+---
+
+## Author
+
+**Oleksandr (Sasha) Klindukh**
+Northeastern University — Computer Science
+[klindukh.o@northeastern.edu](mailto:klindukh.o@northeastern.edu)
