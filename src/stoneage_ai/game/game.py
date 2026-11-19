@@ -15,20 +15,19 @@ from importlib import resources
 from itertools import combinations_with_replacement
 from typing import List, Dict, Optional, Any, Union
 import random
-from matplotlib.style import available
 import numpy as np
-from action_system import ActionSystem, MaskGenerator
+from .action_system import ActionSystem, MaskGenerator
 
 
 from itertools import product
 
-from area import Gathering, Area
-from player import Player
-from building import CertainBuilding, FlexBuilding, Building
-from card import Card
-from utility import Utility
-from decks import create_card_deck
-from decks import create_building_decks
+from .area import Gathering, Area
+from .player import Player
+from .building import CertainBuilding, FlexBuilding, Building
+from .card import Card
+from .utility import Utility
+from .decks import create_card_deck
+from .decks import create_building_decks
 
 
 Location = Union[Utility, Gathering, Card, FlexBuilding, CertainBuilding, None]

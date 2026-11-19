@@ -13,7 +13,7 @@ Classes:
 """
 
 from typing import Dict, Any, List
-from area import Area
+from .area import Area
 
 # Mapping of card type names to numeric identifiers
 # Used for state representation (neural network input)

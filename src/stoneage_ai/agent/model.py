@@ -4,6 +4,7 @@ import torch.optim as optim
 import torch.nn.functional as F
 import numpy as np
 import os
+from stoneage_ai.paths import MODELS_DIR
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(f"Using device: {device}")
@@ -29,7 +30,7 @@ class Linear_QNet(nn.Module):
         return x
 
     def save(self, file_name='model.pth'):
-        model_folder_path = './model'
+        model_folder_path = MODELS_DIR
         if not os.path.exists(model_folder_path):
             os.makedirs(model_folder_path)
         

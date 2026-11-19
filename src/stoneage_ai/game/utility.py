@@ -9,7 +9,7 @@ Classes:
     Utility: Special board locations with generic functionality.
 """
 
-from area import Area
+from .area import Area
 
 
 class Utility(Area):

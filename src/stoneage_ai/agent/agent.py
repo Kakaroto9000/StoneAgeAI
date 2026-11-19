@@ -13,10 +13,10 @@ import torch
 import random
 import os
 import numpy as np
-from game import Game
+from stoneage_ai.game.game import Game
 from collections import deque
-from model import Linear_QNet, QTrainer
-from helper import plot
+from .model import Linear_QNet, QTrainer
+from stoneage_ai.paths import MODELS_DIR
 
 # Configuration constants for training
 MAX_MEMORY = 1000000  # Maximum size of experience replay buffer
@@ -60,7 +60,7 @@ class Agent:
         self.memory = deque(maxlen=MAX_MEMORY)
         
         self.model = Linear_QNet(154, 512, num_actions)      
-        model_path = './model/model.pth'
+        model_path = MODELS_DIR / 'model.pth'
         if os.path.exists(model_path):
             self.model.load_state_dict(torch.load(model_path))
             print("Loaded saved model!")
@@ -159,7 +159,7 @@ class Agent:
         Returns:
             np.ndarray: The action vector (size 8 for 8 possible moves).
         """
-        from model import device
+        from .model import device
         # Decrease epsilon over games - more exploration early, more exploitation later
         self.epsilon = max(5, 100 - self.n_games/20)  # Always keep some exploration
         
