@@ -7,7 +7,10 @@ name = "stoneage-ai"
 version = "0.1.0"
 description = "Stone Age board game engine with a DQN self-play agent"
 requires-python = ">=3.10"
-dependencies = ["numpy", "torch"]
+dependencies = ["numpy", "torch", "fastapi", "uvicorn"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+"stoneage_ai.web" = ["static/*"]

@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Stone Age AI</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <h1>Stone Age AI</h1>
+      <span class="muted" id="meta">Play against a DQN agent trained by self-play</span>
+    </div>
+    <form class="new-game" id="new-game-form">
+      <label for="seat">Seat</label>
+      <select id="seat">
+        <option value="0">Play as Player 1</option>
+        <option value="1">Play as Player 2</option>
+        <option value="2">Play as Player 3</option>
+        <option value="3">Play as Player 4</option>
+        <option value="spectate">Watch 4 AIs</option>
+      </select>
+      <button type="submit" class="btn primary">New game</button>
+    </form>
+  </header>
+
+  <main class="layout" id="app" hidden>
+    <section class="board" aria-label="Board">
+      <div class="status" id="status"></div>
+
+      <h2>Gathering</h2>
+      <div class="tiles gather" id="gathering"></div>
+
+      <h2>Village</h2>
+      <div class="tiles village" id="village"></div>
+
+      <h2>Civilization cards <span class="muted" id="deck-count"></span></h2>
+      <div class="tiles cards" id="cards"></div>
+
+      <h2>Buildings</h2>
+      <div class="tiles buildings" id="buildings"></div>
+    </section>
+
+    <aside class="side">
+      <section class="panel decision" id="decision" aria-live="polite"></section>
+      <section class="players" id="players"></section>
+      <section class="panel log">
+        <h2>Game log</h2>
+        <ol id="log"></ol>
+      </section>
+    </aside>
+  </main>
+
+  <p class="empty" id="empty">Pick a seat and start a new game.</p>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
