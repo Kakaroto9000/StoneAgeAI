@@ -2,7 +2,8 @@
 FastAPI app: play Stone Age in the browser against the trained agent.
 
 Endpoints:
-    POST /api/games                  start a game (human seat or spectate)
+    GET  /api/models                 checkpoints the AI seats can use, plus "random"
+    POST /api/games                  start a game (human seat or spectate, optional model)
     GET  /api/games/{id}             current state
     POST /api/games/{id}/move        submit the human's action, then AI plays
     POST /api/games/{id}/advance     let AI seats play (spectator mode / catch-up)
@@ -18,9 +19,9 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from stoneage_ai.agent.policy import DEFAULT_MODEL, GreedyPolicy
-from stoneage_ai.game.game import Game
+from stoneage_ai.agent.policy import DEFAULT_MODEL
 
+from . import models
 from .session import GameSession, IllegalMove
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
@@ -29,25 +30,14 @@ MAX_SESSIONS = 200
 app = FastAPI(title="Stone Age AI")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
-# One shared policy: the network is loaded lazily, once, for inference only.
-_policy: Optional[GreedyPolicy] = None
-_model_path: Optional[Path] = DEFAULT_MODEL
+# Policies are loaded lazily and cached per model (see web/models.py).
 _sessions: Dict[str, GameSession] = {}
+models.configure_default(DEFAULT_MODEL)
 
 
 def configure(model_path: Optional[Path]) -> None:
-    """Choose the checkpoint AI seats use (None = random moves). Call before serving."""
-    global _model_path, _policy
-    _model_path, _policy = model_path, None
-
-
-def get_policy() -> GreedyPolicy:
-    global _policy
-    if _policy is None:
-        probe = Game()
-        probe.reset()
-        _policy = GreedyPolicy(num_actions=probe.action_system.NUM_ACTIONS, model_path=_model_path)
-    return _policy
+    """Choose the default checkpoint AI seats use (None = random moves). Call before serving."""
+    models.configure_default(model_path)
 
 
 def get_session(game_id: str) -> GameSession:
@@ -59,6 +49,8 @@ def get_session(game_id: str) -> GameSession:
 
 class NewGame(BaseModel):
     human_seat: Optional[int] = Field(0, ge=0, le=3, description="null to spectate")
+    model: Optional[str] = Field(None, description='checkpoint id from /api/models, or "random"; '
+                                                   "omit for the server default")
 
 
 class Move(BaseModel):
@@ -74,11 +66,20 @@ def index() -> FileResponse:
     return FileResponse(STATIC_DIR / "index.html")
 
 
+@app.get("/api/models")
+def list_models() -> dict:
+    return models.list_models()
+
+
 @app.post("/api/games")
 def new_game(body: NewGame) -> dict:
+    try:
+        model_id, policy = models.get_policy(body.model)
+    except models.UnknownModel as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     if len(_sessions) >= MAX_SESSIONS:  # drop the oldest game
         _sessions.pop(next(iter(_sessions)))
-    session = GameSession(get_policy(), human_seat=body.human_seat)
+    session = GameSession(policy, human_seat=body.human_seat, model_id=model_id)
     _sessions[session.id] = session
     with session.lock:
         if session.human_seat is not None:

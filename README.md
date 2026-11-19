@@ -40,15 +40,20 @@ The agent uses a Deep Q-Network to approximate the action-value function Q(s, a)
 
 - **State representation:** Encoded game state vector (resources, workers, scores, board occupancy)
 - **Action space:** All legal moves available on a given turn
-- **Reward function:** Sparse reward based on win/loss outcome, with small intermediate signals for resource efficiency
-- **Training loop:** Agent plays against frozen copies of itself, with the opponent updated periodically
+- **Reward function** (see `src/stoneage_ai/agent/rewards.py`):
+  - each seat gets its own change in VP (÷20), so starvation's −10 VP counts once, when it happens
+  - potential-based shaping for holding building resources (doesn't change the optimal policy)
+  - at game end, final VP on a linear scale: 0 VP → −1, 10 VP → 0, 20+ VP → +1 (`FINAL_VP_MIN` / `FINAL_VP_MAX` in `rewards.py`)
+- **Training loop:** one network plays all four seats, but only Player 1 (the learner seat) is trained on — its actions, the rewards it receives, and its final result. The other three seats are opponents whose experience is discarded. The next state in each transition is always Player 1's next decision, never an opponent's
 
 ### Training Details
 | Parameter | Value |
 |---|---|
 | Training matches | 200,000+ |
 | Optimizer | Adam |
-| Discount factor (γ) | 0.99 |
+| Discount factor (γ) | 0.995 per Player 1 decision |
+| Returns | 16-step (rewards summed over 16 decisions before bootstrapping) |
+| Target | Double DQN with a target network synced every 20 games, max over legal moves only |
 | Exploration | ε-greedy with decay |
 | Replay buffer | Experience replay |
 
@@ -101,28 +106,50 @@ git clone https://github.com/Kakaroto9000/StoneAgeAI.git
 cd StoneAgeAI
 pip install -r requirements.txt
 
-# Train the agent
+# Train the agent (fresh network; checkpoints every 10,000 games in models/runs/<timestamp>/)
 python train.py
+python train.py --resume runs/<run>/games_0010000.pth   # continue from a checkpoint
+python train.py --no-tensorboard                         # CSV + console only
 
 # Play against the trained agent in the browser (http://127.0.0.1:8000)
 python play.py
 ```
 
+### Tracking training
+
+Each run writes to its own folder, `models/runs/<timestamp>/`:
+
+- **Console:** one line per 100 games with average learner VP, opponents' VP (network vs random), win rate, game length in rounds, ε, loss and games/s.
+- **`metrics.csv`:** one row per game (VP of every seat, win, rounds, ε, loss, transitions) for pandas or Excel.
+- **TensorBoard:** the same averages as live graphs. Run `tensorboard --logdir models/runs` and open http://localhost:6006 to compare runs side by side.
+- **Checkpoints:** `games_0010000.pth` every 10k games, `best.pth` at each new learner VP record, and `games_<n>_stopped.pth` when you press Ctrl+C.
+- **Trained models (`checkpoints.csv`):** one row per periodic or stopped checkpoint with how the agent was doing at that point (average learner VP, win rate, rounds, ε and loss over the last 100 games, plus the VP record). The console prints a `Checkpoint ...` line on each save, and TensorBoard's **Text** tab shows the run's checkpoint table.
+
+To see every trained model across all runs (legacy `models/*.pth` files included, with unknown games):
+
+```bash
+python train.py --list-models
+```
+
 ### Web UI options
 
 ```bash
-python play.py --model model_15_games.pth   # pick any checkpoint in models/
+python play.py --model model_15_games.pth   # default checkpoint (any file in models/)
+python play.py --model runs/2026-11-18_21-05-33/best.pth
 python play.py --model random               # AI seats play random legal moves
 python play.py --host 0.0.0.0 --port 9000   # serve on your network
 ```
 
 In the UI you can take any of the four seats or choose **Watch 4 AIs** to see the agent play itself. Legal spaces are highlighted, and the server only accepts moves from the engine's own action mask.
 
+The **Model** picker next to the seat chooses which checkpoint the AI players use for the next game (and for *Play again*): any snapshot from a training run (e.g. "Run 2026-11-18 21:05 · 10,000 games", "… · best", "… · stopped at 250 games"), older files in `models/` (marked *legacy*), or random moves. `--model` only sets which one is selected by default. Checkpoints that don't fit the current network are labelled *incompatible, plays random*, and the header shows the model actually playing.
+
 API (used by the frontend, handy for scripting):
 
 | Method | Path | Purpose |
 |---|---|---|
-| `POST` | `/api/games` | Start a game: `{"human_seat": 0-3 or null}` |
+| `GET` | `/api/models` | Checkpoints the AI can use (`id`, `label`, `kind`, `games`, `compatible`, `default`) plus `"random"` |
+| `POST` | `/api/games` | Start a game: `{"human_seat": 0-3 or null, "model": id or "random"}` (`model` optional, defaults to `--model`) |
 | `GET` | `/api/games/{id}` | Current state and your legal actions |
 | `POST` | `/api/games/{id}/move` | `{"action_index": n}`, then AI seats play until your turn |
 | `POST` | `/api/games/{id}/advance` | `{"max_steps": n}` let AI seats play (spectator mode) |

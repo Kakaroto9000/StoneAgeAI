@@ -52,11 +52,19 @@ async function api(path, body) {
 
 // ---------- actions ----------
 
-async function newGame(seatValue) {
+async function loadModels() {
+  const { models } = await api("/api/models");
+  const select = $("model");
+  fill(select, models.map((m) => h("option", {
+    value: m.id, selected: m.default, title: m.id,
+  }, m.default ? `${m.label} (default)` : m.label)));
+}
+
+async function newGame(seatValue, modelValue = $("model").value) {
   stopSpectating();
   const human_seat = seatValue === "spectate" ? null : Number(seatValue);
   selectedLocation = null;
-  setState(await api("/api/games", { human_seat }));
+  setState(await api("/api/games", { human_seat, model: modelValue || null }));
   if (human_seat === null) startSpectating();
 }
 
@@ -98,7 +106,9 @@ function setState(next) {
 function render() {
   $("empty").hidden = true;
   $("app").hidden = false;
-  $("meta").textContent = `AI model: ${state.ai_model}`;
+  const meta = $("meta");
+  meta.textContent = `AI model: ${state.ai_model}`;
+  meta.title = state.ai_model_id || "";
   renderStatus();
   renderBoard();
   renderPlayers();
@@ -415,3 +425,5 @@ $("new-game-form").addEventListener("submit", (e) => {
   e.preventDefault();
   newGame($("seat").value).catch((err) => alert(err.message));
 });
+
+loadModels().catch(() => {}); // keep "Server default" if the list can't be loaded

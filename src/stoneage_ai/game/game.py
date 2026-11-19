@@ -151,6 +151,8 @@ class Game:
         self.current_type_of_action = 1
         self.current_action_data = [0,0,0,0]
         self.game_end = False
+        # Kept across reset(): seats whose negative VP must not end the game.
+        self.starvation_exempt = getattr(self, "starvation_exempt", set())
 
         self.action_system = ActionSystem(self.locations)
         self.mask_generator = MaskGenerator(self.action_system)
@@ -166,7 +168,9 @@ class Game:
                 return True
         if self.round >= 25:
             return True
-        if any(p.vp<0 for p in self.players):
+        # Starvation ends the game, except for seats listed in starvation_exempt
+        # (e.g. a random-move training opponent that would otherwise end it early).
+        if any(p.vp < 0 for i, p in enumerate(self.players) if i not in self.starvation_exempt):
             return True
         return False
                 
@@ -854,23 +858,23 @@ class Game:
         # === Total (154) ===
         return np.array(flat_state, dtype=np.float32)
     
-    def check_if_can_buy(self, action):
-        for index, location in enumerate(self.cards + self.buildings):
-            if location is not None and location.is_able_to_buy(self.current_player.resources) and location.can_place():
-                return (True, index+8)
-        return (False, 0)
-
     def play_step(self, action_index: int):
+        """
+        Apply one action and advance the game.
+
+        Args:
+            action_index: Index into ``action_system.ALL_ACTIONS``.
+
+        Returns:
+            tuple: (reward, game_end, action_index) where reward is the acting
+            player's raw VP change.
+        """
 
         action = self.action_system.get_action(action_index)
 
         player_active = self.current_player_idx
-        current_score = self.current_player.get_score()
-        action_type_at_decision = self.current_type_of_action
+        vp_before = self.current_player.get_vp()
         if self.current_type_of_action == 1:
-            if self.check_if_can_buy(action)[0]:
-                action_index = self.action_system.get_index(1, self.check_if_can_buy(action)[1], 1)
-                action = self.action_system.get_action(action_index)
             self.locations[action[0]].place(self.current_player_idx, action[1])
             self.current_player.available_workers -= action[1]
             if not self.round_not_over():
@@ -917,61 +921,17 @@ class Game:
         # Choose 2 resources: action = [resource1, resource2, 0, 0, 0, 0, 0]
             self.get_2_resources(action[0], action[1])
             self.resolve_locations()
-        reward = self.calculate_reward(action, player_active, action_type_at_decision, current_score, self.players[player_active].get_score())
+        reward = self.calculate_reward(player_active, vp_before)
         return reward, self.game_end, action_index
 
-    def calculate_reward(self, action, player_active, action_type_at_decision, past_score, current_score):
+    def calculate_reward(self, player_active: int, vp_before: int) -> int:
         """
-        Improved reward function with dense shaping signals.
+        Raw VP change for the player who just acted.
 
-        Key principles:
-        1. VP is the ultimate goal - weight it heavily
-        2. Penalize starvation risk based on worker/food imbalance
-        3. Reward sustainable growth (wheat before workers)
-        4. Small bonuses for resource accumulation (enables future purchases)
+        Training does its own per-seat reward bookkeeping (see
+        ``stoneage_ai.agent.rewards``); this value is kept for simple callers.
         """
-
-        # ===== PRIMARY: Victory Point Change =====
-        reward = 0
-        
-        player = self.players[player_active]
-        # 1. VP change (keep this)
-        vp_delta = current_score[3]
-        resources = current_score[0]
-        reward += vp_delta * 5
-
-        if any(b.is_able_to_buy(resources) and b.occupants.get(player_active, 0) > 0 for b in self.buildings + self.cards if b is not None):
-            reward += 30
-        
-        if current_score[0][2] > 15 and self.locations[3].occupants[player_active]>0:
-            reward -= 40
-
-        if current_score[3] >= 100:
-            reward += 30
-        elif current_score[3] >= 50:
-            reward += 10
-        elif current_score[3] < 0:
-            reward -= 20
-        if current_score[0][2] > 20:
-            reward -= 40
-        reward -= max(0,current_score[0][2]- 14)*4 
-
-        # ===== END OF GAME BONUS/PENALTY =====
-        if self.game_end:
-            final_vp = current_score[3]
-
-            # Tiered bonuses for good scores
-            if final_vp >= 200:
-                reward += 200
-            elif final_vp >= 100:
-                reward += 100
-            elif final_vp > 0:
-                reward += 10
-            elif final_vp <= 0:
-                reward = -100
-    
-
-        return reward
+        return self.players[player_active].get_vp() - vp_before
 
     def check_if_any_uncollectedhumans_left(self):
         return not all(loc.is_empty() for loc in self.locations if loc is not None)
