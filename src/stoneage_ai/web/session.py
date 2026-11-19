@@ -23,9 +23,11 @@ class IllegalMove(Exception):
 
 
 class GameSession:
-    def __init__(self, policy: GreedyPolicy, human_seat: Optional[int] = 0) -> None:
+    def __init__(self, policy: GreedyPolicy, human_seat: Optional[int] = 0,
+                 model_id: Optional[str] = None) -> None:
         self.id = uuid.uuid4().hex[:12]
         self.policy = policy
+        self.model_id = model_id  # which entry of /api/models the AI seats use
         self.human_seat = human_seat
         self.lock = threading.Lock()
         self.game = Game()
@@ -118,6 +120,7 @@ class GameSession:
             "finished": self.finished,
             "error": self.error,
             "ai_model": self.policy.model_name,
+            "ai_model_id": self.model_id,
             "players": players,
             "locations": [serialize.serialize_location(game, loc, i)
                           for i, loc in enumerate(game.locations)],

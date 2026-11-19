@@ -31,20 +31,37 @@ class GreedyPolicy:
     def __init__(self, num_actions: int, model_path: Optional[Path] = DEFAULT_MODEL) -> None:
         self.model: Optional[Linear_QNet] = None
         self.model_name = "random"
+        # Why a requested checkpoint could not be used (None if it loaded, or none was asked for).
+        self.load_error: Optional[str] = None
 
         if model_path is not None and not Path(model_path).exists():
+            self.load_error = f"no checkpoint at {Path(model_path).name}"
+            self.model_name = f"random ({self.load_error})"
             print(f"No checkpoint at {model_path}; AI will play random legal moves.")
         elif model_path is not None:
             model = Linear_QNet(STATE_SIZE, 512, num_actions)
             try:
                 model.load_state_dict(torch.load(model_path, map_location=device))
             except RuntimeError:  # shape mismatch with an old checkpoint
+                self.load_error = f"{Path(model_path).name} doesn't match the current network"
+                self.model_name = f"random ({self.load_error})"
                 print(f"{Path(model_path).name} doesn't match the current network "
                       f"(state size {STATE_SIZE}); AI will play random legal moves.")
             else:
                 model.eval()
                 self.model = model
                 self.model_name = Path(model_path).name
+
+    @staticmethod
+    def is_compatible(model_path: Path, num_actions: int) -> bool:
+        """True if the checkpoint's tensor shapes match the current network."""
+        try:
+            saved = torch.load(model_path, map_location="cpu")
+        except Exception:
+            return False
+        expected = Linear_QNet(STATE_SIZE, 512, num_actions).state_dict()
+        return (isinstance(saved, dict) and saved.keys() == expected.keys()
+                and all(tuple(saved[k].shape) == tuple(v.shape) for k, v in expected.items()))
 
     @property
     def is_trained(self) -> bool:

@@ -4,7 +4,11 @@ Usage:
     python play.py              # http://127.0.0.1:8000
     python play.py --port 9000 --host 0.0.0.0
     python play.py --model model_15_games.pth   # any file in models/
+    python play.py --model runs/2026-11-18_21-05-33/best.pth
     python play.py --model random               # AI plays random legal moves
+
+--model is only the default: the browser's "Model" picker can choose any
+checkpoint in models/ (or random moves) for each new game.
 """
 
 import argparse
@@ -23,7 +27,7 @@ if __name__ == "__main__":
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--model", default="model.pth",
-                        help="checkpoint in models/ (or a path), or 'random'")
+                        help="default checkpoint: a file in models/ (or a path), or 'random'")
     args = parser.parse_args()
 
     if args.model == "random":

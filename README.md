@@ -134,18 +134,22 @@ python train.py --list-models
 ### Web UI options
 
 ```bash
-python play.py --model model_15_games.pth   # pick any checkpoint in models/
+python play.py --model model_15_games.pth   # default checkpoint (any file in models/)
+python play.py --model runs/2026-11-18_21-05-33/best.pth
 python play.py --model random               # AI seats play random legal moves
 python play.py --host 0.0.0.0 --port 9000   # serve on your network
 ```
 
 In the UI you can take any of the four seats or choose **Watch 4 AIs** to see the agent play itself. Legal spaces are highlighted, and the server only accepts moves from the engine's own action mask.
 
+The **Model** picker next to the seat chooses which checkpoint the AI players use for the next game (and for *Play again*): any snapshot from a training run (e.g. "Run 2026-11-18 21:05 · 10,000 games", "… · best", "… · stopped at 250 games"), older files in `models/` (marked *legacy*), or random moves. `--model` only sets which one is selected by default. Checkpoints that don't fit the current network are labelled *incompatible, plays random*, and the header shows the model actually playing.
+
 API (used by the frontend, handy for scripting):
 
 | Method | Path | Purpose |
 |---|---|---|
-| `POST` | `/api/games` | Start a game: `{"human_seat": 0-3 or null}` |
+| `GET` | `/api/models` | Checkpoints the AI can use (`id`, `label`, `kind`, `games`, `compatible`, `default`) plus `"random"` |
+| `POST` | `/api/games` | Start a game: `{"human_seat": 0-3 or null, "model": id or "random"}` (`model` optional, defaults to `--model`) |
 | `GET` | `/api/games/{id}` | Current state and your legal actions |
 | `POST` | `/api/games/{id}/move` | `{"action_index": n}`, then AI seats play until your turn |
 | `POST` | `/api/games/{id}/advance` | `{"max_steps": n}` let AI seats play (spectator mode) |
