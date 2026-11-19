@@ -17,6 +17,8 @@ from stoneage_ai.game.game import Game
 from collections import deque
 from .model import Linear_QNet, QTrainer
 from . import rewards
+from stoneage_ai.paths import MODELS_DIR
+from .tracking import TrainingLogger
 
 # Configuration constants for training
 MAX_MEMORY = 1000000  # Maximum size of experience replay buffer
@@ -24,7 +26,7 @@ BATCH_SIZE = 512    # Number of experiences sampled per training batch
 LR = 0.001          # Learning rate for the neural network optimizer
 CHECKPOINT_EVERY = 10_000  # Save a snapshot to models/runs/<run>/ every N games
 LEARNER_SEAT = 0           # Only this seat's (Player 1's) experience is trained on
-STATS_WINDOW = 1000        # Games used for the rolling win rate
+LOG_EVERY = 100            # Games averaged per console line / TensorBoard point
 GAMMA = 0.995              # Discount per learner decision (~150/game): end result keeps ~47% at game start
 N_STEP = 16                # Rewards summed per transition before bootstrapping
 TARGET_SYNC_GAMES = 20     # Copy the online network into the target network every N games
@@ -104,7 +106,7 @@ class Agent:
         """
         self.memory.append(transition)
 
-    def train_long_memory(self) -> None:
+    def train_long_memory(self) -> float:
         """
         Train the model on a batch of experiences from long-term memory.
         
@@ -123,11 +125,11 @@ class Agent:
             mini_sample = self.memory
 
         # Unpack the batch into one tuple per field and run one training step
-        self.trainer.train_step(*zip(*mini_sample))
+        return self.trainer.train_step(*zip(*mini_sample))
 
-    def train_short_memory(self, transition: tuple) -> None:
-        """Train immediately on a single n-step transition (see ``remember``)."""
-        self.trainer.train_step(*transition)
+    def train_short_memory(self, transition: tuple) -> float:
+        """Train immediately on a single n-step transition (see ``remember``). Returns the loss."""
+        return self.trainer.train_step(*transition)
 
     def exploration_rate(self) -> float:
         """Linear epsilon schedule: EPS_START -> EPS_END over EPS_DECAY_GAMES games."""
@@ -162,7 +164,7 @@ class Agent:
             return int(torch.argmax(prediction).item())
 
 
-def train(resume=None) -> None:
+def train(resume=None, tensorboard=True) -> None:
     """
     Self-play training loop that learns from one seat only.
 
@@ -188,9 +190,13 @@ def train(resume=None) -> None:
     Args:
         resume: optional checkpoint path to continue from; otherwise the
             network starts from random weights.
+        tensorboard: also write TensorBoard logs (if tensorboard is installed).
+
+    Progress goes to ``models/runs/<run>/metrics.csv`` (every game), TensorBoard
+    and the console (averaged every LOG_EVERY games). Ctrl+C saves a final
+    checkpoint and flushes the logs.
     """
-    record = -10000                         # learner's best VP so far
-    recent_wins = deque(maxlen=STATS_WINDOW)
+    record = -10000  # learner's best VP so far
 
     game = Game()
     game.starvation_exempt = set(RANDOM_SEATS)  # a random seat starving must not end the game
@@ -201,6 +207,9 @@ def train(resume=None) -> None:
     run_dir = f"runs/{datetime.now():%Y-%m-%d_%H-%M-%S}"
     print(f"Training seat {LEARNER_SEAT + 1}; checkpoints every {CHECKPOINT_EVERY:,} games "
           f"-> models/{run_dir}/")
+    logger = TrainingLogger(MODELS_DIR / run_dir, LEARNER_SEAT, RANDOM_SEATS,
+                            log_every=LOG_EVERY, use_tensorboard=tensorboard)
+    transitions_this_game = 0
 
     # The learner's open decision: {"state", "action", "reward", "phi"} or None
     pending = None
@@ -213,9 +222,11 @@ def train(resume=None) -> None:
         state, action = window[0][0], window[0][1]
         ret = sum(agent.gamma ** i * window[i][2] for i in range(k))
         _, _, _, next_state, done, next_mask = window[k - 1]
+        nonlocal transitions_this_game
         transition = (state, action, ret, next_state, done, next_mask, agent.gamma ** k)
-        agent.train_short_memory(transition)
+        logger.add_loss(agent.train_short_memory(transition))
         agent.remember(transition)
+        transitions_this_game += 1
         window.popleft()
 
     def close(next_state, next_mask, done, extra_reward=0.0, next_phi=0.0):
@@ -232,68 +243,66 @@ def train(resume=None) -> None:
         elif len(window) == N_STEP:
             emit(N_STEP)
 
-    while True:
-        seat = game.current_player_idx
-        learner_turn = seat == LEARNER_SEAT
-        state = agent.get_state(game)
+    try:
+        while True:
+            seat = game.current_player_idx
+            learner_turn = seat == LEARNER_SEAT
+            state = agent.get_state(game)
 
-        if learner_turn:
-            phi = rewards.potential(game, LEARNER_SEAT)
-            mask = np.packbits(game.get_mask().astype(bool))
-            close(state, mask, False, next_phi=phi)  # learner decides again: previous step ends
+            if learner_turn:
+                phi = rewards.potential(game, LEARNER_SEAT)
+                mask = np.packbits(game.get_mask().astype(bool))
+                close(state, mask, False, next_phi=phi)  # learner decides again: previous step ends
 
-        if seat in RANDOM_SEATS:
-            action = int(game.mask_generator.get_random_valid_action(game))
-        else:
-            action = agent.get_action(state, game)
-        vp_before = game.players[LEARNER_SEAT].get_vp()
-        _, done, action = game.play_step(action)
-        vp_after = game.players[LEARNER_SEAT].get_vp()
+            if seat in RANDOM_SEATS:
+                action = int(game.mask_generator.get_random_valid_action(game))
+            else:
+                action = agent.get_action(state, game)
+            vp_before = game.players[LEARNER_SEAT].get_vp()
+            _, done, action = game.play_step(action)
+            vp_after = game.players[LEARNER_SEAT].get_vp()
 
-        if learner_turn:
-            pending = {"state": state, "action": action, "reward": 0.0, "phi": phi}
-        if pending is not None:
-            # Opponents' moves (and round-end feeding) can change the learner's VP too.
-            pending["reward"] += (vp_after - vp_before) / rewards.VP_SCALE
+            if learner_turn:
+                pending = {"state": state, "action": action, "reward": 0.0, "phi": phi}
+            if pending is not None:
+                # Opponents' moves (and round-end feeding) can change the learner's VP too.
+                pending["reward"] += (vp_after - vp_before) / rewards.VP_SCALE
 
-        if done:
-            final_state = agent.get_state(game)  # ignored by the target when done=True
-            no_moves = np.packbits(np.zeros(game.action_system.NUM_ACTIONS, dtype=bool))
-            close(final_state, no_moves, True,
-                  extra_reward=rewards.terminal_rewards(game)[LEARNER_SEAT])
+            if done:
+                final_state = agent.get_state(game)  # ignored by the target when done=True
+                no_moves = np.packbits(np.zeros(game.action_system.NUM_ACTIONS, dtype=bool))
+                close(final_state, no_moves, True,
+                      extra_reward=rewards.terminal_rewards(game)[LEARNER_SEAT])
 
-            final_vps = rewards.vp_snapshot(game)
-            learner_vp = final_vps[LEARNER_SEAT]
-            recent_wins.append(learner_vp == max(final_vps))
-            for player in game.players:
-                cards_owned = len(player.card_effects[0]) + len(player.card_effects[1])
-                print(f"player end: food={player.resources[2]}, wheat={player.wheat}, "
-                      f"workers={player.total_workers}, vp={player.get_vp()}, "
-                      f"buildings={player.building_num}, cards={cards_owned}, "
-                      f"tools={sum(t[0] for t in player.tools)}, "
-                      f"multipliers={list(player.multipliers.values())}, "
-                      f"rounds={game.round}, resources={player.resources}")
+                final_vps = rewards.vp_snapshot(game)
+                learner_vp = final_vps[LEARNER_SEAT]
+                game_rounds = game.round
+                game.reset()
+                agent.n_games += 1
+                logger.add_loss(agent.train_long_memory())
+                if agent.n_games % TARGET_SYNC_GAMES == 0:
+                    agent.trainer.sync_target()
 
-            game_rounds = game.round
-            game.reset()
-            agent.n_games += 1
-            agent.train_long_memory()
-            if agent.n_games % TARGET_SYNC_GAMES == 0:
-                agent.trainer.sync_target()
+                if learner_vp > record:
+                    record = learner_vp
+                    agent.model.save(file_name=f"{run_dir}/best.pth")
 
-            if learner_vp > record:
-                record = learner_vp
-                agent.model.save(file_name=f"{run_dir}/best.pth")
-            if agent.n_games % CHECKPOINT_EVERY == 0:
-                path = agent.model.save(file_name=f"{run_dir}/games_{agent.n_games:07d}.pth")
-                print(f"Saved checkpoint {path}")
+                logger.log_game(agent.n_games, final_vps,
+                                won=learner_vp == max(final_vps), rounds=game_rounds,
+                                epsilon=agent.epsilon, transitions=transitions_this_game,
+                                record=record)
+                transitions_this_game = 0
+                # Saved after log_game so the checkpoint's stats include this game.
+                if agent.n_games % CHECKPOINT_EVERY == 0:
+                    path = agent.model.save(file_name=f"{run_dir}/games_{agent.n_games:07d}.pth")
+                    logger.log_checkpoint(path, agent.n_games, record)
 
-            win_rate = sum(recent_wins) / len(recent_wins)
-            print(f"Game {agent.n_games}, learner vp {learner_vp}, record {record}, "
-                  f"opponents {final_vps[:LEARNER_SEAT] + final_vps[LEARNER_SEAT + 1:]}, "
-                  f"win rate (last {len(recent_wins)}) {win_rate:.0%}, "
-                  f"rounds {game_rounds}, epsilon {agent.epsilon:.2f}")
-
+    except KeyboardInterrupt:
+        path = agent.model.save(file_name=f"{run_dir}/games_{agent.n_games:07d}_stopped.pth")
+        print(f"\nStopped after {agent.n_games:,} games. Saved {path}")
+        logger.log_checkpoint(path, agent.n_games, record)
+    finally:
+        logger.close(record)
 
 if __name__ == '__main__':
     # Run the training loop when script is executed directly

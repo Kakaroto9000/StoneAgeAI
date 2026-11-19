@@ -109,9 +109,26 @@ pip install -r requirements.txt
 # Train the agent (fresh network; checkpoints every 10,000 games in models/runs/<timestamp>/)
 python train.py
 python train.py --resume runs/<run>/games_0010000.pth   # continue from a checkpoint
+python train.py --no-tensorboard                         # CSV + console only
 
 # Play against the trained agent in the browser (http://127.0.0.1:8000)
 python play.py
+```
+
+### Tracking training
+
+Each run writes to its own folder, `models/runs/<timestamp>/`:
+
+- **Console:** one line per 100 games with average learner VP, opponents' VP (network vs random), win rate, game length in rounds, ε, loss and games/s.
+- **`metrics.csv`:** one row per game (VP of every seat, win, rounds, ε, loss, transitions) for pandas or Excel.
+- **TensorBoard:** the same averages as live graphs. Run `tensorboard --logdir models/runs` and open http://localhost:6006 to compare runs side by side.
+- **Checkpoints:** `games_0010000.pth` every 10k games, `best.pth` at each new learner VP record, and `games_<n>_stopped.pth` when you press Ctrl+C.
+- **Trained models (`checkpoints.csv`):** one row per periodic or stopped checkpoint with how the agent was doing at that point (average learner VP, win rate, rounds, ε and loss over the last 100 games, plus the VP record). The console prints a `Checkpoint ...` line on each save, and TensorBoard's **Text** tab shows the run's checkpoint table.
+
+To see every trained model across all runs (legacy `models/*.pth` files included, with unknown games):
+
+```bash
+python train.py --list-models
 ```
 
 ### Web UI options
