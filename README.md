@@ -40,15 +40,20 @@ The agent uses a Deep Q-Network to approximate the action-value function Q(s, a)
 
 - **State representation:** Encoded game state vector (resources, workers, scores, board occupancy)
 - **Action space:** All legal moves available on a given turn
-- **Reward function:** Sparse reward based on win/loss outcome, with small intermediate signals for resource efficiency
-- **Training loop:** Agent plays against frozen copies of itself, with the opponent updated periodically
+- **Reward function** (see `src/stoneage_ai/agent/rewards.py`):
+  - each seat gets its own change in VP (÷20), so starvation's −10 VP counts once, when it happens
+  - potential-based shaping for holding building resources (doesn't change the optimal policy)
+  - at game end, final VP on a linear scale: 0 VP → −1, 10 VP → 0, 20+ VP → +1 (`FINAL_VP_MIN` / `FINAL_VP_MAX` in `rewards.py`)
+- **Training loop:** one network plays all four seats, but only Player 1 (the learner seat) is trained on — its actions, the rewards it receives, and its final result. The other three seats are opponents whose experience is discarded. The next state in each transition is always Player 1's next decision, never an opponent's
 
 ### Training Details
 | Parameter | Value |
 |---|---|
 | Training matches | 200,000+ |
 | Optimizer | Adam |
-| Discount factor (γ) | 0.99 |
+| Discount factor (γ) | 0.995 per Player 1 decision |
+| Returns | 16-step (rewards summed over 16 decisions before bootstrapping) |
+| Target | Double DQN with a target network synced every 20 games, max over legal moves only |
 | Exploration | ε-greedy with decay |
 | Replay buffer | Experience replay |
 
@@ -101,8 +106,9 @@ git clone https://github.com/Kakaroto9000/StoneAgeAI.git
 cd StoneAgeAI
 pip install -r requirements.txt
 
-# Train the agent
+# Train the agent (fresh network; checkpoints every 10,000 games in models/runs/<timestamp>/)
 python train.py
+python train.py --resume runs/<run>/games_0010000.pth   # continue from a checkpoint
 
 # Play against the trained agent in the browser (http://127.0.0.1:8000)
 python play.py
