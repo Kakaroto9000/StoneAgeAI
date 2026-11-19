@@ -17,7 +17,7 @@ Classes:
 
 from typing import Dict, Optional
 from abc import ABC, abstractmethod
-from area import Area
+from .area import Area
 
 
 class Building(Area):

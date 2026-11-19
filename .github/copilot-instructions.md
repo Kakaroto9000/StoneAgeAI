@@ -1,5 +1,8 @@
 # StoneAgeAI Development Guide for AI Agents
 
+## Project Layout
+Engine modules live in `src/stoneage_ai/game/`, the agent and Q-network in `src/stoneage_ai/agent/`, checkpoints in `models/`. Imports inside the package are relative (`from .area import Area`). Run training with `python train.py` from the repo root.
+
 ## Project Overview
 StoneAgeAI is a reinforcement learning-based game engine implementing a Stone Age board game with multiple players, strategic resource management, and AI decision-making. The codebase is under active development with a focus on game mechanics, player intelligence, and ML integration.
 
@@ -59,7 +62,7 @@ All game locations inherit from `Area(ABC)`:
 
 ## Critical Developer Workflows
 
-- **Running Game**: Execute `game.py` directly (no test framework found; manual testing)
+- **Running Game**: Run `python train.py` from the repo root (no test framework found; manual testing)
 - **AI Integration**: Implement `Agent` class methods to handle `Player.decide_action()` return values
 - **Adding New Cards**: Add type to `CARD_TYPE_NUMBERS`, implement effects in `immediate_effect()` / `end_game_effect()`
 - **Debugging Player State**: Use `player.resources` and `player.available_workers` to inspect state

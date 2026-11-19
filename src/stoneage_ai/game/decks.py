@@ -15,15 +15,15 @@ from the Stone Age board game, ready to be imported into game.py.
 
 
 Usage:
-    from decks import create_card_deck, create_building_decks
+    from stoneage_ai.game.decks import create_card_deck, create_building_decks
     
     cards_in_deck = create_card_deck()
     buildings_in_deck = create_building_decks()
 """
 
 import random
-from card import Card
-from building import CertainBuilding, FlexBuilding
+from .card import Card
+from .building import CertainBuilding, FlexBuilding
 
 
 def create_card_deck(shuffle: bool = True) -> list[Card]:

@@ -16,7 +16,7 @@ Action Types:
 import numpy as np
 from itertools import product, combinations_with_replacement
 from typing import Dict, List, Tuple
-from utility import Utility
+from .utility import Utility
 
 
 class ActionSystem:

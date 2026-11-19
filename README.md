@@ -64,16 +64,25 @@ After training, the agent consistently outperforms a random baseline and demonst
 
 ```
 StoneAgeAI/
-├── game/
-│   ├── board.py          # Board state and game rules
-│   ├── player.py         # Player state and actions
-│   └── engine.py         # Game loop and turn management
-├── agent/
-│   ├── dqn.py            # Neural network architecture
-│   ├── trainer.py        # Training loop and self-play logic
-│   └── replay_buffer.py  # Experience replay memory
-├── train.py              # Entry point for training
-└── play.py               # Play against the trained agent
+├── src/stoneage_ai/
+│   ├── paths.py              # Repo-relative paths (models/ directory)
+│   ├── game/                 # Game engine
+│   │   ├── game.py           # Game state machine and turn loop
+│   │   ├── player.py         # Player state and actions
+│   │   ├── area.py           # Area base class and gathering spaces
+│   │   ├── utility.py        # Farm, hut, tool-maker spaces
+│   │   ├── card.py           # Civilization cards
+│   │   ├── building.py       # Building tiles
+│   │   ├── decks.py          # Card and building deck definitions
+│   │   └── action_system.py  # Action encoding and legal-move masks
+│   └── agent/                # RL agent
+│       ├── agent.py          # DQN agent and self-play training loop
+│       └── model.py          # Q-network and trainer
+├── models/                   # Saved model checkpoints (.pth)
+├── docs/stone_age_rules.pdf  # Official game rules
+├── train.py                  # Entry point for training
+├── requirements.txt
+└── pyproject.toml
 ```
 
 ---
@@ -87,9 +96,6 @@ pip install -r requirements.txt
 
 # Train the agent
 python train.py
-
-# Play against the trained agent
-python play.py
 ```
 
 ---
