@@ -75,12 +75,19 @@ StoneAgeAI/
 │   │   ├── building.py       # Building tiles
 │   │   ├── decks.py          # Card and building deck definitions
 │   │   └── action_system.py  # Action encoding and legal-move masks
-│   └── agent/                # RL agent
-│       ├── agent.py          # DQN agent and self-play training loop
-│       └── model.py          # Q-network and trainer
+│   ├── agent/                # RL agent
+│   │   ├── agent.py          # DQN agent and self-play training loop
+│   │   ├── model.py          # Q-network and trainer
+│   │   └── policy.py         # Inference-only greedy policy (used by the UI)
+│   └── web/                  # Browser UI
+│       ├── server.py         # FastAPI app and JSON API
+│       ├── session.py        # One browser game: human seat, AI turns, log
+│       ├── serialize.py      # Engine state -> JSON / readable text
+│       └── static/           # index.html, app.js, style.css (no build step)
 ├── models/                   # Saved model checkpoints (.pth)
 ├── docs/stone_age_rules.pdf  # Official game rules
 ├── train.py                  # Entry point for training
+├── play.py                   # Entry point for the web UI
 ├── requirements.txt
 └── pyproject.toml
 ```
@@ -96,7 +103,29 @@ pip install -r requirements.txt
 
 # Train the agent
 python train.py
+
+# Play against the trained agent in the browser (http://127.0.0.1:8000)
+python play.py
 ```
+
+### Web UI options
+
+```bash
+python play.py --model model_15_games.pth   # pick any checkpoint in models/
+python play.py --model random               # AI seats play random legal moves
+python play.py --host 0.0.0.0 --port 9000   # serve on your network
+```
+
+In the UI you can take any of the four seats or choose **Watch 4 AIs** to see the agent play itself. Legal spaces are highlighted, and the server only accepts moves from the engine's own action mask.
+
+API (used by the frontend, handy for scripting):
+
+| Method | Path | Purpose |
+|---|---|---|
+| `POST` | `/api/games` | Start a game: `{"human_seat": 0-3 or null}` |
+| `GET` | `/api/games/{id}` | Current state and your legal actions |
+| `POST` | `/api/games/{id}/move` | `{"action_index": n}`, then AI seats play until your turn |
+| `POST` | `/api/games/{id}/advance` | `{"max_steps": n}` let AI seats play (spectator mode) |
 
 ---
 
