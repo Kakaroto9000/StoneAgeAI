@@ -25,7 +25,7 @@ from .tracking import TrainingLogger, player_summary
 # Configuration constants for training
 MAX_MEMORY = 1000000  # Maximum size of experience replay buffer
 BATCH_SIZE = 512    # Number of experiences sampled per training batch
-LR = 0.001          # Learning rate for the neural network optimizer
+LR = 0.00025        # Learning rate for the neural network optimizer (1e-3 made the policy oscillate)
 CHECKPOINT_EVERY = 10_000  # Save a snapshot to models/runs/<run>/ every N games
 LEARNER_SEAT = 0           # Only this seat's (Player 1's) experience is trained on
 LOG_EVERY = 100            # Games averaged per console line / TensorBoard point
