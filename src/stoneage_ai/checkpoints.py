@@ -84,6 +84,15 @@ def list_checkpoints(models_dir: Path = MODELS_DIR, run: Optional[str] = None) -
     return ordered
 
 
+def latest_checkpoint(models_dir: Path = MODELS_DIR) -> Optional[Path]:
+    """The most recently saved periodic/stopped checkpoint (else any), or None if there are none."""
+    items = list_checkpoints(models_dir)
+    preferred = [c for c in items if c["kind"] in ("periodic", "stopped")] or items
+    if not preferred:
+        return None
+    return max(preferred, key=lambda c: c["path"].stat().st_mtime)["path"]
+
+
 def resolve_checkpoint(checkpoint_id: str, models_dir: Path = MODELS_DIR) -> Path:
     """Turn an id from ``list_checkpoints`` back into a path, refusing anything outside models/."""
     models_dir = Path(models_dir).resolve()

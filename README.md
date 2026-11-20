@@ -136,7 +136,7 @@ python train.py --list-models
 ### Web UI options
 
 ```bash
-python play.py --model model_15_games.pth   # default checkpoint (any file in models/)
+python play.py                              # AI uses your newest checkpoint (random moves if there is none)
 python play.py --model runs/2026-11-18_21-05-33/best.pth
 python play.py --model random               # AI seats play random legal moves
 python play.py --host 0.0.0.0 --port 9000   # serve on your network
@@ -144,7 +144,7 @@ python play.py --host 0.0.0.0 --port 9000   # serve on your network
 
 In the UI you can take any of the four seats or choose **Watch 4 AIs** to see the agent play itself. Legal spaces are highlighted, and the server only accepts moves from the engine's own action mask.
 
-The **Model** picker next to the seat chooses which checkpoint the AI players use for the next game (and for *Play again*): any snapshot from a training run (e.g. "Run 2026-11-18 21:05 · 10,000 games", "… · best", "… · stopped at 250 games"), older files in `models/` (marked *legacy*), or random moves. `--model` only sets which one is selected by default. Checkpoints that don't fit the current network are labelled *incompatible, plays random*, and the header shows the model actually playing.
+The **Model** picker next to the seat chooses which checkpoint the AI players use for the next game (and for *Play again*): any snapshot from a training run (e.g. "Run 2026-11-18 21:05 · 10,000 games", "… · best", "… · stopped at 250 games"), older files in `models/` (marked *legacy*), or random moves. By default the newest checkpoint is selected; `--model` changes that. Checkpoints that don't fit the current network are labelled *incompatible, plays random*, and the header shows the model actually playing.
 
 API (used by the frontend, handy for scripting):
 

@@ -19,7 +19,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from stoneage_ai.agent.policy import DEFAULT_MODEL
+from stoneage_ai.checkpoints import latest_checkpoint
 
 from . import models
 from .session import GameSession, IllegalMove
@@ -32,7 +32,7 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 # Policies are loaded lazily and cached per model (see web/models.py).
 _sessions: Dict[str, GameSession] = {}
-models.configure_default(DEFAULT_MODEL)
+models.configure_default(latest_checkpoint())  # newest checkpoint, or random if none
 
 
 def configure(model_path: Optional[Path]) -> None:
