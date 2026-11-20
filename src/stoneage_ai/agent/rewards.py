@@ -9,6 +9,9 @@ Every seat is rewarded for its own progress, measured from its own point of view
    building resources a seat holds, which nudges it toward gathering wood,
    stone, clay and gold without changing which policy is optimal
    (Ng et al., 1999). Phi is 0 at the end of the game.
+   Food hoarding: at each round's feeding, every food above FOOD_LIMIT that the
+   seat still holds costs FOOD_PENALTY_VP (as a VP-equivalent). This is a real
+   penalty, not shaping: it does change what the best play is.
 3. Terminal reward: the seat's final VP mapped onto -1..+1 by FINAL_VP_SCALE,
    straight lines between the points (see ``final_score_reward``):
    0 VP or less -> -1, 10 -> -0.8, 20 -> -0.5, 40 -> -0.2, 70 -> 0,
@@ -24,6 +27,8 @@ from stoneage_ai.game.game import Game
 
 VP_SCALE = 20.0          # 20 VP == reward of 1.0
 SHAPING_WEIGHT = 0.3     # fraction of a resource's building value counted in phi
+FOOD_LIMIT = 20          # food held after feeding above this is penalized...
+FOOD_PENALTY_VP = 0.25   # ...by this many VP-equivalents per extra food, every round
 # (final VP, terminal reward), VP ascending. Below the first point -> its reward,
 # above the last -> its reward; linear in between. 200 VP is treated as the maximum.
 FINAL_VP_SCALE = [
@@ -44,6 +49,12 @@ _BUILDING_RESOURCES = (3, 4, 5, 6)
 def vp_snapshot(game: Game) -> List[int]:
     """Total VP of every seat right now."""
     return [p.get_vp() for p in game.players]
+
+
+def food_penalty(game: Game, seat: int) -> float:
+    """Reward (<= 0) for food held above FOOD_LIMIT. Applied once per round, after feeding."""
+    extra = max(0, game.players[seat].resources[2] - FOOD_LIMIT)
+    return -FOOD_PENALTY_VP * extra / VP_SCALE
 
 
 def potential(game: Game, seat: int) -> float:

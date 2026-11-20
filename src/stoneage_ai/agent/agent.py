@@ -257,6 +257,7 @@ def train(resume=None, tensorboard=True) -> None:
             else:
                 action = agent.get_action(state, game)
             vp_before = game.players[LEARNER_SEAT].get_vp()
+            round_before = game.round
             _, done, action = game.play_step(action)
             vp_after = game.players[LEARNER_SEAT].get_vp()
 
@@ -265,6 +266,8 @@ def train(resume=None, tensorboard=True) -> None:
             if pending is not None:
                 # Opponents' moves (and round-end feeding) can change the learner's VP too.
                 pending["reward"] += (vp_after - vp_before) / rewards.VP_SCALE
+                if game.round != round_before:  # this step ended a round: feeding happened
+                    pending["reward"] += rewards.food_penalty(game, LEARNER_SEAT)
 
             if done:
                 final_state = agent.get_state(game)  # ignored by the target when done=True
