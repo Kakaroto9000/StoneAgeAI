@@ -107,86 +107,57 @@ def create_card_deck(shuffle: bool = True) -> list[Card]:
     return cards
 
 
-def create_building_decks() -> dict[int, list]:
+def create_building_tiles() -> list:
     """
-    Create the official Stone Age 28 building tile decks.
-    
-    Buildings are split into 4 stacks of 7 tiles each.
-    Resources: 3=wood, 4=stone, 5=clay/brick, 6=gold
-    
-    Returns:
-        Dict mapping stack index (0-3) to list of Building objects
-    """
-    return {
-        0: [
-            # 2 same + 1 different type buildings
-            CertainBuilding(resources=[3, 3, 5]),      # 2 wood + 1 brick = 10 pts
-            CertainBuilding(resources=[3, 3, 4]),      # 2 wood + 1 stone = 11 pts
-            CertainBuilding(resources=[3, 5, 5]),      # 1 wood + 2 brick = 11 pts
-            # 3 different kinds
-            CertainBuilding(resources=[3, 5, 4]),      # wood + brick + stone = 12 pts
-            CertainBuilding(resources=[3, 5, 6]),      # wood + brick + gold = 13 pts
-            # Flex buildings - 4 resources  # 4 resources, 1 kind
-            FlexBuilding(resources_require_count=4, variety=2),  # 4 resources, 2 kinds
-        ],
-        1: [
-            CertainBuilding(resources=[3, 3, 6]),      # 2 wood + 1 gold = 12 pts
-            CertainBuilding(resources=[3, 4, 4]),      # 1 wood + 2 stone = 13 pts
-            CertainBuilding(resources=[5, 5, 4]),      # 2 brick + 1 stone = 13 pts
-            # 3 different
-            CertainBuilding(resources=[3, 4, 6]),      # wood + stone + gold = 14 pts
-            CertainBuilding(resources=[5, 4, 6]),      # brick + stone + gold = 15 pts
-            # Flex buildings - 4 resources  
-            FlexBuilding(resources_require_count=4, variety=3),  # 4 resources, 3 kinds
-            FlexBuilding(resources_require_count=4, variety=4),  # 4 resources, 4 kinds
-        ],
-        2: [
-            CertainBuilding(resources=[5, 5, 6]),      # 2 brick + 1 gold = 14 pts
-            CertainBuilding(resources=[5, 4, 4]),      # 1 brick + 2 stone = 14 pts
-            CertainBuilding(resources=[4, 4, 6]),      # 2 stone + 1 gold = 16 pts
-            # Flex buildings - 5 resources
-            FlexBuilding(resources_require_count=5, variety=1),  # 5 resources, 1 kind
-            FlexBuilding(resources_require_count=5, variety=2),  # 5 resources, 2 kinds  # 5 resources, 3 kinds
-            FlexBuilding(resources_require_count=5, variety=4),  # 5 resources, 4 kinds
-        ],
-        3: [
-            # 1-7 resources any kind (3 cards in official game)
-            FlexBuilding(resources_require_count=5, variety=3),  # 1-7 resources
-            FlexBuilding(resources_require_count=7, variety=None),  # 1-7 resources
-            FlexBuilding(resources_require_count=4, variety=1),  # 1-7 resources
-            # Fill rest with 3-different buildings
-    # wood + stone + clay
-            CertainBuilding(resources=[4, 5, 6]),      # stone + clay + gold
-            CertainBuilding(resources=[3, 4, 6]),      # wood + stone + gold      # wood + clay + gold
-        ],
-    }
-
-
-def create_starting_cards() -> list[Card]:
-    """
-    Create the 4 starting cards that go on the board at game start.
-    
-    Returns:
-        List of 4 Card objects for initial board setup
+    All 28 building tiles. Resources: 3=wood, 4=stone, 5=clay/brick, 6=gold.
+    A fixed-resource building scores the sum of its resources.
     """
     return [
-        Card("add_resource", cost=1, data={"resources": 2, "amount": 5}, painting=1),
-        Card("add_resource", cost=2, data={"resources": 2, "amount": 4}, painting=1),
-        Card("dice_roll", cost=3, painting=1),
-        Card("add_tool", cost=4, painting=2),
+        # 2 of one kind + 1 other
+        CertainBuilding(resources=[3, 3, 5]),      # 2 wood + 1 brick = 11 pts
+        CertainBuilding(resources=[3, 3, 4]),      # 2 wood + 1 stone = 10 pts
+        CertainBuilding(resources=[3, 4, 3]),      # 2 wood + 1 stone = 10 pts
+        CertainBuilding(resources=[3, 5, 5]),      # 1 wood + 2 brick = 13 pts
+        CertainBuilding(resources=[3, 3, 6]),      # 2 wood + 1 gold = 12 pts
+        CertainBuilding(resources=[6, 6, 3]),      # 2 gold + 1 wood = 15 pts
+        CertainBuilding(resources=[3, 4, 4]),      # 1 wood + 2 stone = 11 pts
+        CertainBuilding(resources=[5, 5, 4]),      # 2 brick + 1 stone = 14 pts
+        CertainBuilding(resources=[5, 5, 6]),      # 2 brick + 1 gold = 16 pts
+        CertainBuilding(resources=[5, 4, 4]),      # 1 brick + 2 stone = 13 pts
+        CertainBuilding(resources=[4, 4, 6]),      # 2 stone + 1 gold = 14 pts
+        # 3 different kinds
+        CertainBuilding(resources=[3, 5, 4]),      # wood + brick + stone = 12 pts
+        CertainBuilding(resources=[3, 5, 6]),      # wood + brick + gold = 14 pts
+        CertainBuilding(resources=[3, 4, 6]),      # wood + stone + gold = 13 pts
+        CertainBuilding(resources=[3, 4, 6]),      # wood + stone + gold = 13 pts
+        CertainBuilding(resources=[5, 4, 6]),      # brick + stone + gold = 15 pts
+        CertainBuilding(resources=[4, 5, 6]),      # stone + brick + gold = 15 pts
+        CertainBuilding(resources=[6, 5, 4]),      # gold + brick + stone = 15 pts
+        # Flexible: N resources of K different kinds, scores the resources paid
+        FlexBuilding(resources_require_count=4, variety=1),
+        FlexBuilding(resources_require_count=4, variety=2),
+        FlexBuilding(resources_require_count=4, variety=3),
+        FlexBuilding(resources_require_count=4, variety=4),
+        FlexBuilding(resources_require_count=5, variety=1),
+        FlexBuilding(resources_require_count=5, variety=2),
+        FlexBuilding(resources_require_count=5, variety=2),
+        FlexBuilding(resources_require_count=5, variety=3),
+        FlexBuilding(resources_require_count=5, variety=4),
+        # 1-7 resources of any kind
+        FlexBuilding(resources_require_count=7, variety=None),
     ]
 
 
-def create_starting_buildings() -> list:
+def create_building_decks(shuffle: bool = True, stacks: int = 4) -> dict[int, list]:
     """
-    Create the 4 starting buildings that go on the board at game start.
-    
+    Shuffle the 28 building tiles and deal them into 4 stacks of 7, as in the
+    board game. The game puts the top tile of each stack on the board.
+
     Returns:
-        List of 4 Building objects for initial board setup
+        Dict mapping stack index (0-3) to its list of Building objects (top first)
     """
-    return [
-        CertainBuilding(resources=[3, 3, 5]),          # 2 wood + 1 brick
-        FlexBuilding(resources_require_count=4, variety=2),  # 4 resources, 2 kinds
-        CertainBuilding(resources=[3, 4, 5]),          # wood + stone + clay
-        CertainBuilding(resources=[4, 5, 6]),          # stone + clay + gold
-    ]
+    tiles = create_building_tiles()
+    if shuffle:
+        random.shuffle(tiles)
+    size = len(tiles) // stacks
+    return {i: tiles[i * size:(i + 1) * size] for i in range(stacks)}

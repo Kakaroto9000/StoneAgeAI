@@ -100,22 +100,16 @@ class Game:
         self.round = 0
         self.current_player_idx = 0
         
-        # Cards available on board (up to 4)
-        self.cards: List[Card] = [
-            Card("add_resource", cost=1, data={"resources": 2, "amount": 8}, multiplier= 11),
-            Card("add_resource", cost=2, data={"resources": 2, "amount": 8}, multiplier= 21),
-            Card("add_resource", cost=3, data={"resources": 2, "amount": 8}, multiplier= 31),
-            Card(card_type="add_resource", cost=4, data={"resources": 2, "amount": 8}, multiplier=42),
-        ]
-        
-        # Buildings available on board (up to 4)
-        self.buildings: List[Building] = [
-            CertainBuilding(resources=[6, 6, 3]),
-            FlexBuilding(resources_require_count=5, variety=2),
-            CertainBuilding(resources=[3, 4, 3]),
-            CertainBuilding(resources=[6, 5, 4]),
-        ]
-        
+        # Shuffled decks, as in the board game
+        self.cards_in_deck: List[Card] = create_card_deck()
+        self.buildings_in_deck: Dict[int, List[Building]] = create_building_decks()
+
+        # Opening board: top 4 cards (costs 1-4) and the top tile of each building stack
+        self.cards: List[Card] = [self.cards_in_deck.pop(0) for _ in range(4)]
+        for i, card in enumerate(self.cards):
+            card.cost = i + 1
+        self.buildings: List[Building] = [self.buildings_in_deck[i].pop(0) for i in range(4)]
+
         # All board locations in order:
         # Indices 0-2: Utilities
         # Indices 3-7: Gathering areas  
@@ -136,12 +130,6 @@ class Game:
         # Add cards and buildings to locations
         self.locations.extend(self.cards)
         self.locations.extend(self.buildings)
-        
-        # Deck of cards to draw from when cards are purchased
-        self.cards_in_deck: List[Card] = create_card_deck()
-        
-        # Deck of buildings by location index
-        self.buildings_in_deck: Dict[int, List[Building]] = create_building_decks()
         
         # Game flow tracking
         self.first_player = random.randint(0,3)
