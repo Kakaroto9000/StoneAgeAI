@@ -127,7 +127,7 @@ Tracking follows Player 1, the seat being trained. At the end of every game it r
 
 If the loss shows `nan`, stop training: the network has broken. `get_state()` now raises an error as soon as a NaN appears in the game state, which is how the last one got in.
 
-To see every trained model across all runs (legacy `models/*.pth` files included, with unknown games):
+To see every trained model across all runs:
 
 ```bash
 python train.py --list-models
@@ -144,7 +144,7 @@ python play.py --host 0.0.0.0 --port 9000   # serve on your network
 
 In the UI you can take any of the four seats or choose **Watch 4 AIs** to see the agent play itself. Legal spaces are highlighted, and the server only accepts moves from the engine's own action mask.
 
-The **Model** picker next to the seat chooses which checkpoint the AI players use for the next game (and for *Play again*): any snapshot from a training run (e.g. "Run 2026-11-18 21:05 · 10,000 games", "… · best", "… · stopped at 250 games"), older files in `models/` (marked *legacy*), or random moves. By default the newest checkpoint is selected; `--model` changes that. Checkpoints that don't fit the current network are labelled *incompatible, plays random*, and the header shows the model actually playing.
+The **Model** picker next to the seat chooses which checkpoint the AI players use for the next game (and for *Play again*): any snapshot from a training run (e.g. "Run 2026-11-18 21:05 · 10,000 games", "… · best", "… · stopped at 250 games"), or random moves. By default the newest checkpoint is selected; `--model` changes that. Checkpoints that don't fit the current network are labelled *incompatible, plays random*, and the header shows the model actually playing.
 
 API (used by the frontend, handy for scripting):
 
