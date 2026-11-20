@@ -117,6 +117,17 @@ python train.py --opponents self random runs/<run>/best.pth   # pick the 3 oppon
 python play.py
 ```
 
+### Training from the browser
+
+Run `python play.py` and open http://127.0.0.1:8000/training (or click **Training** in the header). From there you can:
+
+- **Start a run:** train a new model, or keep training any saved checkpoint (the game count and exploration schedule continue from it).
+- **Choose the 3 opponents:** each one is *Itself* (the network being trained), *Random moves*, or any saved checkpoint, which plays frozen and greedy. The model being trained rotates through all 4 seats, and the opponents are shuffled into the other seats every game. The default matches `python train.py`: itself, itself, random.
+- **Watch it learn:** the newest averages (VP, record, ε, speed, cards, buildings, resources…), a chart of any metric over the run, and the console output.
+- **Stop it:** training finishes the current game, saves `games_<n>_stopped.pth` and exits, just like Ctrl+C.
+
+Training runs as a separate `train.py` process, so the page can be closed or reloaded freely. Runs started from a terminal show up too, through the files every run writes: `config.json` (how it was started), `progress.jsonl` (one line per 100 games) and, for runs started from the page, `train.log`. Only one run can be started from the page at a time.
+
 ### Tracking training
 
 Tracking follows the learner, the seat being trained that game. At the end of every game it records the learner's **VP**, **resources collected** over the whole game (food, wood, stone, clay, gold), **cards and buildings bought**, **tools** (total value), **people** and **wheat** (fields). It also records training health: rounds played, ε and loss. Each run writes to its own folder, `models/runs/<timestamp>/`:

@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Stone Age AI · Training</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <h1>Stone Age AI</h1>
+      <span class="muted">Train the DQN agent and watch it learn</span>
+    </div>
+    <nav class="nav" aria-label="Pages">
+      <a href="/">Play</a>
+      <a href="/training" aria-current="page">Training</a>
+    </nav>
+  </header>
+
+  <main class="train-layout">
+    <section class="panel train-form" aria-labelledby="form-title">
+      <h2 id="form-title">New training run</h2>
+      <form id="start-form">
+        <fieldset>
+          <legend>Model</legend>
+          <label class="check"><input type="radio" name="mode" value="new" checked> Train a new model</label>
+          <label class="check"><input type="radio" name="mode" value="resume"> Keep training a saved model</label>
+          <select id="resume" aria-label="Model to keep training" disabled></select>
+        </fieldset>
+
+        <fieldset>
+          <legend>Opponents</legend>
+          <p class="hint">The model being trained rotates through all 4 seats; these 3 opponents are shuffled into the other seats every game.</p>
+          <div class="opponents" id="opponents"></div>
+        </fieldset>
+
+        <label class="check"><input type="checkbox" id="tensorboard" checked> Also write TensorBoard logs</label>
+        <button type="submit" class="btn primary" id="start-btn">Start training</button>
+        <p class="error" id="form-error" role="alert"></p>
+      </form>
+    </section>
+
+    <div class="train-main">
+      <section class="panel" aria-labelledby="run-title">
+        <div class="run-head">
+          <h2 id="run-title">Run</h2>
+          <select id="run" aria-label="Training run"></select>
+          <span class="badge" id="badge"></span>
+          <button type="button" class="btn small" id="stop-btn" hidden>Stop</button>
+        </div>
+        <p class="run-meta muted" id="run-meta"></p>
+        <div class="stat-tiles" id="tiles"></div>
+        <dl class="stat-grid" id="details"></dl>
+      </section>
+
+      <section class="panel" aria-labelledby="chart-title">
+        <div class="run-head">
+          <h2 id="chart-title">Progress</h2>
+          <select id="metric" aria-label="Metric to chart"></select>
+          <span class="muted small" id="chart-note"></span>
+        </div>
+        <div class="chart" id="chart">
+          <svg id="chart-svg" role="img" aria-label="Training progress chart"></svg>
+          <div class="chart-tip" id="chart-tip" hidden></div>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="log-title">
+        <h2 id="log-title">Console</h2>
+        <pre class="console" id="console"></pre>
+      </section>
+    </div>
+  </main>
+
+  <script src="/static/training.js"></script>
+</body>
+</html>
