@@ -820,7 +820,8 @@ class Game:
             if building is None:
                 flat_state.extend([0, 0, 0])
             elif isinstance(building, FlexBuilding):
-                flat_state.extend([building.resources_require_count, building.variety, 0])
+                # variety is None for the "1-7 resources of any kind" building; None would become NaN
+                flat_state.extend([building.resources_require_count, building.variety or 0, 0])
             else:
                 flat_state.extend(building.resources)
 
@@ -856,7 +857,12 @@ class Game:
         
 
         # === Total (154) ===
-        return np.array(flat_state, dtype=np.float32)
+        state = np.array(flat_state, dtype=np.float32)
+        if not np.isfinite(state).all():
+            # A single NaN reaching the network turns every weight into NaN; fail loudly instead.
+            bad = np.flatnonzero(~np.isfinite(state)).tolist()
+            raise ValueError(f"get_state produced non-finite values at indices {bad}")
+        return state
     
     def play_step(self, action_index: int):
         """

@@ -125,6 +125,8 @@ Each run writes to its own folder, `models/runs/<timestamp>/`:
 - **Checkpoints:** `games_0010000.pth` every 10k games, `best.pth` at each new learner VP record, and `games_<n>_stopped.pth` when you press Ctrl+C.
 - **Trained models (`checkpoints.csv`):** one row per periodic or stopped checkpoint with how the agent was doing at that point (average learner VP, win rate, rounds, ε and loss over the last 100 games, plus the VP record). The console prints a `Checkpoint ...` line on each save, and TensorBoard's **Text** tab shows the run's checkpoint table.
 
+If the loss shows `nan`, stop training: the network has broken. `get_state()` now raises an error as soon as a NaN appears in the game state, which is how the last one got in.
+
 To see every trained model across all runs (legacy `models/*.pth` files included, with unknown games):
 
 ```bash
