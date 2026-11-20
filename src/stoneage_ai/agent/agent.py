@@ -11,6 +11,8 @@ Classes:
 
 import torch
 import random
+import re
+from pathlib import Path
 from datetime import datetime
 import numpy as np
 from stoneage_ai.game.game import Game
@@ -200,6 +202,13 @@ def train(resume=None, tensorboard=True) -> None:
     game = Game()
     game.reset()
     agent = Agent(num_actions=game.action_system.NUM_ACTIONS, model_path=resume)
+    if resume is not None:
+        # Continue the game count (exploration schedule, checkpoint names) from
+        # checkpoints named games_<n>.pth / games_<n>_stopped.pth.
+        match = re.match(r"games_(\d+)", Path(resume).name)
+        if match:
+            agent.n_games = int(match.group(1))
+            print(f"Continuing from game {agent.n_games:,} (epsilon {agent.exploration_rate():.2f})")
 
     # Each training run gets its own checkpoint folder, e.g. models/runs/2026-11-18_21-05-33/
     run_dir = f"runs/{datetime.now():%Y-%m-%d_%H-%M-%S}"
