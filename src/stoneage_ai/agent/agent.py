@@ -169,8 +169,7 @@ def train(resume=None, tensorboard=True) -> None:
     Self-play training loop that learns from one seat only.
 
     Players 1-3 choose moves with the same network (epsilon-greedy); Player 4
-    (``RANDOM_SEATS``) always plays random legal moves, and its starvation does
-    not end the game. Only the learner seat (``LEARNER_SEAT``, Player 1) is
+    (``RANDOM_SEATS``) always plays random legal moves. Only the learner seat (``LEARNER_SEAT``, Player 1) is
     trained on; the others are opponents whose experience is discarded.
 
     Each learner transition is from the learner's point of view:
@@ -199,7 +198,6 @@ def train(resume=None, tensorboard=True) -> None:
     record = -10000  # learner's best VP so far
 
     game = Game()
-    game.starvation_exempt = set(RANDOM_SEATS)  # a random seat starving must not end the game
     game.reset()
     agent = Agent(num_actions=game.action_system.NUM_ACTIONS, model_path=resume)
 

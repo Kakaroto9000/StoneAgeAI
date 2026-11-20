@@ -77,10 +77,6 @@ class GameSession:
         game = self.game
         if not game.game_end:
             return None
-        starved = [i for i, p in enumerate(game.players) if p.vp < 0]
-        if starved:
-            who = ", ".join(f"Player {i + 1}" for i in starved)
-            return f"Game ends early: {who} couldn't feed their people."
         if game.round >= 25:
             return "Game ends after 25 rounds."
         if not game.cards_in_deck:

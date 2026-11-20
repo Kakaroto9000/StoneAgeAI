@@ -139,8 +139,6 @@ class Game:
         self.current_type_of_action = 1
         self.current_action_data = [0,0,0,0]
         self.game_end = False
-        # Kept across reset(): seats whose negative VP must not end the game.
-        self.starvation_exempt = getattr(self, "starvation_exempt", set())
 
         self.action_system = ActionSystem(self.locations)
         self.mask_generator = MaskGenerator(self.action_system)
@@ -156,10 +154,7 @@ class Game:
                 return True
         if self.round >= 25:
             return True
-        # Starvation ends the game, except for seats listed in starvation_exempt
-        # (e.g. a random-move training opponent that would otherwise end it early).
-        if any(p.vp < 0 for i, p in enumerate(self.players) if i not in self.starvation_exempt):
-            return True
+        # Starving costs the player 10 VP (see Player.feed) but doesn't end the game.
         return False
                 
     def get_valid_actions_for_choose_2_resources(self):

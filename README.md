@@ -41,7 +41,7 @@ The agent uses a Deep Q-Network to approximate the action-value function Q(s, a)
 - **State representation:** Encoded game state vector (resources, workers, scores, board occupancy)
 - **Action space:** All legal moves available on a given turn
 - **Reward function** (see `src/stoneage_ai/agent/rewards.py`):
-  - each seat gets its own change in VP (÷20), so starvation's −10 VP counts once, when it happens
+  - each seat gets its own change in VP (÷20), so starvation's −10 VP counts once, when it happens. Starving doesn't end the game.
   - potential-based shaping for holding building resources (doesn't change the optimal policy)
   - at game end, final VP on a linear scale: 0 VP → −1, 10 VP → 0, 20+ VP → +1 (`FINAL_VP_MIN` / `FINAL_VP_MAX` in `rewards.py`)
 - **Training loop:** one network plays all four seats, but only Player 1 (the learner seat) is trained on — its actions, the rewards it receives, and its final result. The other three seats are opponents whose experience is discarded. The next state in each transition is always Player 1's next decision, never an opponent's
