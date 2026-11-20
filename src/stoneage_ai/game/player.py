@@ -75,6 +75,9 @@ class Player:
         ]
         
         self.building_num = 0  # Number of buildings owned
+        self.cards_bought = 0  # Civilization cards bought (for training stats)
+        # Resources gained over the whole game, by type (for training stats)
+        self.collected: dict[int, int] = {2: 0, 3: 0, 4: 0, 5: 0, 6: 0}
         
         # Single-use tools that can be used once then discarded
         self.one_use_tools: list[int] = []
@@ -119,6 +122,8 @@ class Player:
         """
         if type in self.resources:
             self.resources[type] += amount
+            if amount > 0:
+                self.collected[type] += amount
 
     def lose_resources(self, resources: list[int]) -> None:
         """

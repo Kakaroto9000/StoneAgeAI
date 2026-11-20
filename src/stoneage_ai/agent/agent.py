@@ -18,7 +18,7 @@ from collections import deque
 from .model import Linear_QNet, QTrainer
 from . import rewards
 from stoneage_ai.paths import MODELS_DIR
-from .tracking import TrainingLogger
+from .tracking import TrainingLogger, player_summary
 
 # Configuration constants for training
 MAX_MEMORY = 1000000  # Maximum size of experience replay buffer
@@ -191,11 +191,11 @@ def train(resume=None, tensorboard=True) -> None:
             network starts from random weights.
         tensorboard: also write TensorBoard logs (if tensorboard is installed).
 
-    Progress goes to ``models/runs/<run>/metrics.csv`` (every game), TensorBoard
-    and the console (averaged every LOG_EVERY games). Ctrl+C saves a final
-    checkpoint and flushes the logs.
+    Progress goes to TensorBoard and the console (Player 1 averages every
+    LOG_EVERY games) and to ``models/runs/<run>/checkpoints.csv`` on each
+    checkpoint. Ctrl+C saves a final checkpoint and flushes the logs.
     """
-    record = -10000  # learner's best VP so far
+    best_vp = -10000  # learner's best VP so far; only used to decide when to save best.pth
 
     game = Game()
     game.reset()
@@ -205,8 +205,8 @@ def train(resume=None, tensorboard=True) -> None:
     run_dir = f"runs/{datetime.now():%Y-%m-%d_%H-%M-%S}"
     print(f"Training seat {LEARNER_SEAT + 1}; checkpoints every {CHECKPOINT_EVERY:,} games "
           f"-> models/{run_dir}/")
-    logger = TrainingLogger(MODELS_DIR / run_dir, LEARNER_SEAT, RANDOM_SEATS,
-                            log_every=LOG_EVERY, use_tensorboard=tensorboard)
+    logger = TrainingLogger(MODELS_DIR / run_dir, log_every=LOG_EVERY, use_tensorboard=tensorboard,
+                            player_label=f"player{LEARNER_SEAT + 1}")
     transitions_this_game = 0
 
     # The learner's open decision: {"state", "action", "reward", "phi"} or None
@@ -272,8 +272,8 @@ def train(resume=None, tensorboard=True) -> None:
                 close(final_state, no_moves, True,
                       extra_reward=rewards.terminal_rewards(game)[LEARNER_SEAT])
 
-                final_vps = rewards.vp_snapshot(game)
-                learner_vp = final_vps[LEARNER_SEAT]
+                learner_stats = player_summary(game.players[LEARNER_SEAT])  # before reset
+                learner_vp = learner_stats["vp"]
                 game_rounds = game.round
                 game.reset()
                 agent.n_games += 1
@@ -281,26 +281,24 @@ def train(resume=None, tensorboard=True) -> None:
                 if agent.n_games % TARGET_SYNC_GAMES == 0:
                     agent.trainer.sync_target()
 
-                if learner_vp > record:
-                    record = learner_vp
+                if learner_vp > best_vp:
+                    best_vp = learner_vp
                     agent.model.save(file_name=f"{run_dir}/best.pth")
 
-                logger.log_game(agent.n_games, final_vps,
-                                won=learner_vp == max(final_vps), rounds=game_rounds,
-                                epsilon=agent.epsilon, transitions=transitions_this_game,
-                                record=record)
+                logger.log_game(agent.n_games, learner_stats, rounds=game_rounds,
+                                epsilon=agent.epsilon, transitions=transitions_this_game)
                 transitions_this_game = 0
                 # Saved after log_game so the checkpoint's stats include this game.
                 if agent.n_games % CHECKPOINT_EVERY == 0:
                     path = agent.model.save(file_name=f"{run_dir}/games_{agent.n_games:07d}.pth")
-                    logger.log_checkpoint(path, agent.n_games, record)
+                    logger.log_checkpoint(path, agent.n_games)
 
     except KeyboardInterrupt:
         path = agent.model.save(file_name=f"{run_dir}/games_{agent.n_games:07d}_stopped.pth")
         print(f"\nStopped after {agent.n_games:,} games. Saved {path}")
-        logger.log_checkpoint(path, agent.n_games, record)
+        logger.log_checkpoint(path, agent.n_games)
     finally:
-        logger.close(record)
+        logger.close()
 
 if __name__ == '__main__':
     # Run the training loop when script is executed directly

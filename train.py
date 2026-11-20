@@ -26,8 +26,8 @@ def list_models() -> None:
         print(f"No models found in {MODELS_DIR}")
         return
     w = max(len("checkpoint"), *(len(c["path"].name) for c in checkpoints))
-    header = (f"  {'checkpoint':<{w}} {'kind':<9} {'games':>9} {'learner vp':>10} {'win':>6} "
-              f"{'rounds':>6} {'eps':>5} {'size':>8}")
+    header = (f"  {'checkpoint':<{w}} {'kind':<9} {'games':>9} {'VP':>6} {'cards':>6} "
+              f"{'build':>6} {'tools':>6} {'people':>6} {'wheat':>6} {'rounds':>6} {'size':>8}")
     current = object()
     stats = {}
     for c in checkpoints:
@@ -41,17 +41,19 @@ def list_models() -> None:
         row = stats.get(c["path"].name, {})
         games = f"{c['games']:,}" if c["games"] is not None else "?"
         name = c["path"].name
-        print(f"  {name:<{w}} {c['kind']:<9} {games:>9} {_fmt(row.get('learner_vp'), '.1f'):>10} "
-              f"{_fmt(row.get('win_rate'), '.0%'):>6} {_fmt(row.get('rounds'), '.1f'):>6} "
-              f"{_fmt(row.get('epsilon'), '.2f'):>5} {c['size_kb']:>5} KB")
-    print("\nStats are averages over the last games before each save (from the run's checkpoints.csv).")
+        vp = row.get("vp", row.get("learner_vp"))  # older checkpoints.csv files used learner_vp
+        cols = " ".join(f"{_fmt(row.get(k), '.1f'):>6}"
+                        for k in ("cards", "buildings", "tools", "people", "wheat", "rounds"))
+        print(f"  {name:<{w}} {c['kind']:<9} {games:>9} {_fmt(vp, '.1f'):>6} {cols} "
+              f"{c['size_kb']:>5} KB")
+    print("\nPlayer 1 averages over the last games before each save (from the run's checkpoints.csv).")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train the Stone Age DQN agent by self-play.")
     parser.add_argument("--resume", help="checkpoint in models/ (or a path) to continue from")
     parser.add_argument("--no-tensorboard", action="store_true",
-                        help="only write metrics.csv and the console summary")
+                        help="skip TensorBoard; only print the console summary")
     parser.add_argument("--list-models", action="store_true",
                         help="list all saved models (grouped by run) with their stats, then exit")
     args = parser.parse_args()

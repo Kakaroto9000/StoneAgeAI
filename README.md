@@ -117,13 +117,12 @@ python play.py
 
 ### Tracking training
 
-Each run writes to its own folder, `models/runs/<timestamp>/`:
+Tracking follows Player 1, the seat being trained. At the end of every game it records Player 1's **VP**, **resources collected** over the whole game (food, wood, stone, clay, gold), **cards and buildings bought**, **tools** (total value), **people** and **wheat** (fields). It also records training health: rounds played, ε and loss. Each run writes to its own folder, `models/runs/<timestamp>/`:
 
-- **Console:** one line per 100 games with average learner VP, opponents' VP (network vs random), win rate, game length in rounds, ε, loss and games/s.
-- **`metrics.csv`:** one row per game (VP of every seat, win, rounds, ε, loss, transitions) for pandas or Excel.
-- **TensorBoard:** the same averages as live graphs. Run `tensorboard --logdir models/runs` and open http://localhost:6006 to compare runs side by side.
-- **Checkpoints:** `games_0010000.pth` every 10k games, `best.pth` at each new learner VP record, and `games_<n>_stopped.pth` when you press Ctrl+C.
-- **Trained models (`checkpoints.csv`):** one row per periodic or stopped checkpoint with how the agent was doing at that point (average learner VP, win rate, rounds, ε and loss over the last 100 games, plus the VP record). The console prints a `Checkpoint ...` line on each save, and TensorBoard's **Text** tab shows the run's checkpoint table.
+- **Console:** one line per 100 games with Player 1's averages, the VP record (best single game in those 100), rounds, ε, loss and games/s.
+- **TensorBoard:** the same averages as live graphs under `player1/*`, `player1_collected/*` and `training/*`. Run `tensorboard --logdir models/runs` in a second terminal and open http://localhost:6006.
+- **Checkpoints:** `games_0010000.pth` every 10k games, `best.pth` whenever Player 1 beats its best VP so far in the run, and `games_<n>_stopped.pth` when you press Ctrl+C.
+- **Trained models (`checkpoints.csv`):** one row per periodic or stopped checkpoint with Player 1's averages over the last 100 games at that point. The console prints a `Checkpoint ...` line on each save, and TensorBoard's **Text** tab shows the run's checkpoint table.
 
 If the loss shows `nan`, stop training: the network has broken. `get_state()` now raises an error as soon as a NaN appears in the game state, which is how the last one got in.
 

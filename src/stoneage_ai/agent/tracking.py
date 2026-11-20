@@ -1,15 +1,20 @@
 """
-Training progress logging: CSV per game, TensorBoard + console per window.
+Training progress logging focused on the learner (Player 1).
 
-Training runs thousands of games a minute, so the expensive outputs are
-aggregated: every game is buffered and written to ``metrics.csv`` once per
-window, and TensorBoard / the console get one averaged data point per window
-(``log_every`` games). TensorBoard is optional; without it only the CSV and
-console are written.
+What is tracked, per game, for the learner at the end of the game:
+    vp                                   final victory points
+    food, wood, stone, clay, gold        resources collected over the whole game
+    cards, buildings                     civilization cards / buildings bought
+    tools, people, wheat                 total tool value, people, fields (wheat)
+plus training health: rounds played, epsilon, loss, transitions stored.
+
+Training runs many games a second, so nothing is written per game: games are
+kept in memory and TensorBoard / the console get one averaged data point per
+window (``log_every`` games). TensorBoard is optional; without it only the
+console line is printed.
 
 Files live in the run folder, e.g. ``models/runs/2026-11-18_21-05-33/``:
-    metrics.csv                  one row per game
-    checkpoints.csv              one row per saved checkpoint, with the recent stats at that point
+    checkpoints.csv              one row per saved checkpoint, with the recent averages at that point
     events.out.tfevents.*        TensorBoard (view with: tensorboard --logdir models/runs);
                                  the "checkpoints" table is under the Text tab
 """
@@ -27,29 +32,39 @@ try:
 except ImportError:  # tensorboard not installed
     SummaryWriter = None
 
-CSV_FIELDS = ["game", "learner_vp", "p1_vp", "p2_vp", "p3_vp", "p4_vp", "win",
-              "rounds", "epsilon", "loss", "transitions"]
-_P = 2  # column of p1_vp; seat i is column _P + i
+RESOURCE_FIELDS = ["food", "wood", "stone", "clay", "gold"]
+PLAYER_FIELDS = ["vp", *RESOURCE_FIELDS, "cards", "buildings", "tools", "people", "wheat"]
+TRAINING_FIELDS = ["rounds", "epsilon", "loss", "transitions"]
 
-CHECKPOINT_FIELDS = ["checkpoint", "games", "saved_at", "window_games", "learner_vp",
-                     "win_rate", "rounds", "epsilon", "loss", "record"]
+CHECKPOINT_FIELDS = ["checkpoint", "games", "saved_at", "window_games", *PLAYER_FIELDS,
+                     "vp_record", "rounds", "epsilon", "loss"]
+
+
+def player_summary(player) -> Dict[str, int]:
+    """The learner's end-of-game stats. Call before ``game.reset()``."""
+    return {
+        "vp": player.get_vp(),
+        **{name: player.collected[key] for key, name in zip((2, 3, 4, 5, 6), RESOURCE_FIELDS)},
+        "cards": player.cards_bought,
+        "buildings": player.building_num,
+        "tools": sum(t[0] for t in player.tools),
+        "people": player.total_workers,
+        "wheat": player.wheat,
+    }
+
+
+def _nanmean(values) -> float:
+    values = [v for v in values if v == v]  # drop NaN
+    return mean(values) if values else float("nan")
 
 
 class TrainingLogger:
-    def __init__(self, run_dir: Path, learner_seat: int, random_seats=(), log_every: int = 100,
-                 use_tensorboard: bool = True, num_seats: int = 4) -> None:
+    def __init__(self, run_dir: Path, log_every: int = 100, use_tensorboard: bool = True,
+                 player_label: str = "player1") -> None:
         self.run_dir = Path(run_dir)
-        self.learner_seat = learner_seat
-        self.random_seats = [i for i in range(num_seats) if i in set(random_seats) and i != learner_seat]
-        self.network_seats = [i for i in range(num_seats)
-                              if i != learner_seat and i not in self.random_seats]
         self.run_dir.mkdir(parents=True, exist_ok=True)
         self.log_every = log_every
-
-        self._csv_file = open(self.run_dir / "metrics.csv", "a", newline="")
-        self._csv = csv.writer(self._csv_file)
-        if self._csv_file.tell() == 0:
-            self._csv.writerow(CSV_FIELDS)
+        self.label = player_label
 
         self.tb = None
         if use_tensorboard and SummaryWriter is not None:
@@ -57,7 +72,7 @@ class TrainingLogger:
         elif use_tensorboard:
             print("TensorBoard not installed (pip install tensorboard); logging to CSV only.")
 
-        self._rows: List[list] = []
+        self._rows: List[Dict] = []
         self._losses: List[float] = []
         self._window_start = time.perf_counter()
         # Last ``log_every`` game rows (shared references, no copies) for checkpoint stats.
@@ -68,73 +83,67 @@ class TrainingLogger:
         if loss is not None:
             self._losses.append(loss)
 
-    def log_game(self, game: int, final_vps: List[int], won: bool, rounds: int,
-                 epsilon: float, transitions: int, record: int) -> None:
-        """Record one finished game; writes everything once per ``log_every`` games."""
-        loss = mean(self._losses) if self._losses else float("nan")
+    def log_game(self, game: int, player_stats: Dict[str, int], rounds: int,
+                 epsilon: float, transitions: int) -> None:
+        """Record one finished game; reports averages once per ``log_every`` games.
+
+        ``player_stats`` comes from ``player_summary(learner)`` taken before reset.
+        """
+        row = {"game": game, **player_stats, "rounds": rounds, "epsilon": round(epsilon, 4),
+               "loss": round(_nanmean(self._losses), 6), "transitions": transitions}
         self._losses.clear()
-        self._rows.append([game, final_vps[self.learner_seat], *final_vps, int(won), rounds,
-                           round(epsilon, 4), round(loss, 6), transitions])
-        self._recent.append(self._rows[-1])
+        self._rows.append(row)
+        self._recent.append(row)
         if len(self._rows) >= self.log_every:
-            self._flush_window(record)
+            self._flush_window()
 
-    def _flush_window(self, record: int) -> None:
+    @staticmethod
+    def _averages(rows: List[Dict]) -> Dict[str, float]:
+        stats = {f: mean(r[f] for r in rows) for f in PLAYER_FIELDS + ["rounds"]}
+        stats["vp_record"] = max(r["vp"] for r in rows)  # best single game in this window
+        stats["epsilon"] = rows[-1]["epsilon"]
+        stats["loss"] = _nanmean(r["loss"] for r in rows)
+        return stats
+
+    def _flush_window(self) -> None:
         rows, self._rows = self._rows, []
-        self._csv.writerows(rows)
-        self._csv_file.flush()
 
-        game = rows[-1][0]
+        game = rows[-1]["game"]
         elapsed = time.perf_counter() - self._window_start
         self._window_start = time.perf_counter()
-        win, rounds, eps, loss = (CSV_FIELDS.index(f) for f in ("win", "rounds", "epsilon", "loss"))
-        losses = [r[loss] for r in rows if r[loss] == r[loss]]  # drop NaN
-
-        def seat_mean(seats):
-            values = [r[_P + i] for r in rows for i in seats]
-            return mean(values) if values else float("nan")
-
-        stats = {
-            "vp/learner": mean(r[1] for r in rows),
-            "vp/network_opponents": seat_mean(self.network_seats),
-            "vp/random_opponent": seat_mean(self.random_seats),
-            "win_rate": mean(r[win] for r in rows),
-            "rounds": mean(r[rounds] for r in rows),
-            "epsilon": rows[-1][eps],
-            "loss": mean(losses) if losses else float("nan"),
-            "games_per_sec": len(rows) / elapsed if elapsed > 0 else 0.0,
-        }
+        s = self._averages(rows)
+        games_per_sec = len(rows) / elapsed if elapsed > 0 else 0.0
 
         if self.tb is not None:
-            for name, value in stats.items():
-                self.tb.add_scalar(name, value, game)
-            self.tb.add_scalar("vp/record", record, game)
+            p = self.label
+            self.tb.add_scalar(f"{p}/vp", s["vp"], game)
+            self.tb.add_scalar(f"{p}/vp_record", s["vp_record"], game)
+            for f in ("cards", "buildings", "tools", "people", "wheat"):
+                self.tb.add_scalar(f"{p}/{f}", s[f], game)
+            for f in RESOURCE_FIELDS:
+                self.tb.add_scalar(f"{p}_collected/{f}", s[f], game)
+            self.tb.add_scalar("training/rounds", s["rounds"], game)
+            self.tb.add_scalar("training/epsilon", s["epsilon"], game)
+            self.tb.add_scalar("training/loss", s["loss"], game)
+            self.tb.add_scalar("training/games_per_sec", games_per_sec, game)
 
-        print(f"Games {game - len(rows) + 1}-{game} | learner vp {stats['vp/learner']:.1f} "
-              f"(record {record}) | net opp {stats['vp/network_opponents']:.1f} | "
-              f"random opp {stats['vp/random_opponent']:.1f} | win {stats['win_rate']:.0%} | "
-              f"rounds {stats['rounds']:.1f} | eps {stats['epsilon']:.2f} | "
-              f"loss {stats['loss']:.4f} | {stats['games_per_sec']:.0f} games/s")
+        res = "collected " + " ".join(f"{f} {s[f]:.1f}" for f in RESOURCE_FIELDS)
+        print(f"Games {game - len(rows) + 1}-{game} | VP {s['vp']:.1f} (record {s['vp_record']}) | {res} | "
+              f"cards {s['cards']:.1f} buildings {s['buildings']:.1f} tools {s['tools']:.1f} "
+              f"people {s['people']:.1f} wheat {s['wheat']:.1f} | rounds {s['rounds']:.1f} | "
+              f"eps {s['epsilon']:.2f} | loss {s['loss']:.4f} | {games_per_sec:.0f} games/s")
 
     def recent_stats(self) -> Dict:
         """Averages over the last ``log_every`` games (fewer if the run is younger)."""
         rows = list(self._recent)
         if not rows:
-            return {"window_games": 0, "learner_vp": float("nan"), "win_rate": float("nan"),
-                    "rounds": float("nan"), "epsilon": float("nan"), "loss": float("nan")}
-        win, rounds, eps, loss = (CSV_FIELDS.index(f) for f in ("win", "rounds", "epsilon", "loss"))
-        losses = [r[loss] for r in rows if r[loss] == r[loss]]  # drop NaN
-        return {
-            "window_games": len(rows),
-            "learner_vp": round(mean(r[1] for r in rows), 2),
-            "win_rate": round(mean(r[win] for r in rows), 3),
-            "rounds": round(mean(r[rounds] for r in rows), 2),
-            "epsilon": rows[-1][eps],
-            "loss": round(mean(losses), 6) if losses else float("nan"),
-        }
+            return {"window_games": 0, **{f: float("nan") for f in CHECKPOINT_FIELDS[4:-1]}}
+        stats = {k: round(v, 4) for k, v in self._averages(rows).items()}
+        stats["vp_record"] = int(stats["vp_record"])
+        return {"window_games": len(rows), **stats}
 
-    def log_checkpoint(self, path, game: int, record: int) -> None:
-        """Record a saved checkpoint (periodic or stopped) with the agent's recent stats.
+    def log_checkpoint(self, path, game: int) -> None:
+        """Record a saved checkpoint (periodic or stopped) with the learner's recent averages.
 
         Appends to ``checkpoints.csv``, refreshes the TensorBoard "checkpoints" text table
         and prints one console line. Only called on checkpoint saves, so cost doesn't matter.
@@ -142,11 +151,11 @@ class TrainingLogger:
         path = Path(path)
         entry = {"checkpoint": path.name, "games": game,
                  "saved_at": datetime.now().isoformat(timespec="seconds"),
-                 **self.recent_stats(), "record": record}
+                 **self.recent_stats()}
         log_file = self.run_dir / "checkpoints.csv"
         new_file = not log_file.exists() or log_file.stat().st_size == 0
         with open(log_file, "a", newline="") as f:
-            writer = csv.DictWriter(f, fieldnames=CHECKPOINT_FIELDS)
+            writer = csv.DictWriter(f, fieldnames=CHECKPOINT_FIELDS, extrasaction="ignore")
             if new_file:
                 writer.writeheader()
             writer.writerow(entry)
@@ -157,14 +166,14 @@ class TrainingLogger:
             self.tb.flush()
 
         print(f"Checkpoint {path.name} after {game:,} games | last {entry['window_games']} games: "
-              f"learner vp {_fmt(entry['learner_vp'], '.1f')} | win {_fmt(entry['win_rate'], '.0%')} | "
-              f"rounds {_fmt(entry['rounds'], '.1f')} | eps {_fmt(entry['epsilon'], '.2f')} | "
-              f"record {record}")
+              f"VP {_fmt(entry['vp'], '.1f')} | cards {_fmt(entry['cards'], '.1f')} | "
+              f"buildings {_fmt(entry['buildings'], '.1f')} | tools {_fmt(entry['tools'], '.1f')} | "
+              f"people {_fmt(entry['people'], '.1f')} | wheat {_fmt(entry['wheat'], '.1f')} | "
+              f"rounds {_fmt(entry['rounds'], '.1f')} | record {_fmt(entry['vp_record'], '.0f')}")
 
-    def close(self, record: int) -> None:
+    def close(self) -> None:
         if self._rows:
-            self._flush_window(record)
-        self._csv_file.close()
+            self._flush_window()
         if self.tb is not None:
             self.tb.close()
 
@@ -189,10 +198,14 @@ def read_checkpoint_log(run_dir: Path) -> List[Dict]:
 
 def checkpoints_markdown(entries: List[Dict]) -> str:
     """Markdown table of checkpoints (for TensorBoard's Text tab)."""
-    lines = ["| checkpoint | games | saved at | learner VP | win rate | rounds | epsilon | record |",
-             "|---|---:|---|---:|---:|---:|---:|---:|"]
+    lines = ["| checkpoint | games | saved at | VP | cards | buildings | tools | people | wheat "
+             "| rounds | VP record |",
+             "|---|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|"]
     for e in entries:
+        vp = e.get("vp", e.get("learner_vp"))  # older checkpoints.csv files used learner_vp
         lines.append(f"| {e['checkpoint']} | {int(e['games']):,} | {e['saved_at']} | "
-                     f"{_fmt(e['learner_vp'], '.2f')} | {_fmt(e['win_rate'], '.1%')} | "
-                     f"{_fmt(e['rounds'], '.1f')} | {_fmt(e['epsilon'], '.3f')} | {e['record']} |")
+                     f"{_fmt(vp, '.1f')} | {_fmt(e.get('cards'), '.1f')} | "
+                     f"{_fmt(e.get('buildings'), '.1f')} | {_fmt(e.get('tools'), '.1f')} | "
+                     f"{_fmt(e.get('people'), '.1f')} | {_fmt(e.get('wheat'), '.1f')} | "
+                     f"{_fmt(e.get('rounds'), '.1f')} | {_fmt(e.get('vp_record', e.get('record')), '.0f')} |")
     return "\n".join(lines)

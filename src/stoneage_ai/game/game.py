@@ -642,6 +642,7 @@ class Game:
                 except:
                     raise Exception(f"{res} {self.currrent_type_of}Trying to return resource to invalid location")
         self.current_player.lose_resources(resources)
+        self.current_player.cards_bought += 1
         # Find and remove the card
         for i, c in enumerate(self.cards):
             if c is card:
