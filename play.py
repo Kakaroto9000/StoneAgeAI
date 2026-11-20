@@ -39,5 +39,12 @@ if __name__ == "__main__":
     else:
         path = Path(args.model)
         server.configure(path if path.exists() else MODELS_DIR / args.model)
-    print(f"Stone Age AI running at http://{args.host}:{args.port}")
+    if args.host in ("0.0.0.0", "::"):
+        # 0.0.0.0 means "accept connections on every network"; it isn't an address to open.
+        import socket
+        print(f"Stone Age AI running. Open http://localhost:{args.port} on this PC, or "
+              f"http://{socket.gethostname().lower()}:{args.port} from your other devices "
+              f"(same network or Tailscale).")
+    else:
+        print(f"Stone Age AI running at http://{args.host}:{args.port}")
     uvicorn.run(server.app, host=args.host, port=args.port)
