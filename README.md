@@ -45,14 +45,14 @@ The agent uses a Deep Q-Network to approximate the action-value function Q(s, a)
   - food hoarding penalty: at each round's feeding, every food above 20 still held costs 0.25 VP-equivalent (`FOOD_LIMIT` / `FOOD_PENALTY_VP`)
   - potential-based shaping for holding building resources (doesn't change the optimal policy)
   - at game end, final VP on a scale up to 200 VP: 0 → −1, 10 → −0.8, 20 → −0.5, 40 → −0.2, 70 → 0, 100 → +0.3, 150 → +0.7, 200+ → +1, linear in between (`FINAL_VP_SCALE` in `rewards.py`)
-- **Training loop:** one network plays all four seats, but only Player 1 (the learner seat) is trained on — its actions, the rewards it receives, and its final result. The other three seats are opponents whose experience is discarded. The next state in each transition is always Player 1's next decision, never an opponent's
+- **Training loop:** one network plays the seats, but only one seat per game (the learner) is trained on — its actions, the rewards it receives, and its final result. The learner seat rotates every game (game 0 → Player 1, game 1 → Player 2, …) so the network learns to play from every seat; one of the other seats, picked at random each game, plays random legal moves. Opponents' experience is discarded. The next state in each transition is always the learner's next decision, never an opponent's
 
 ### Training Details
 | Parameter | Value |
 |---|---|
 | Training matches | 200,000+ |
 | Optimizer | Adam |
-| Discount factor (γ) | 0.995 per Player 1 decision |
+| Discount factor (γ) | 0.995 per learner decision |
 | Returns | 16-step (rewards summed over 16 decisions before bootstrapping) |
 | Target | Double DQN with a target network synced every 20 games, max over legal moves only |
 | Exploration | ε-greedy with decay |
@@ -118,12 +118,12 @@ python play.py
 
 ### Tracking training
 
-Tracking follows Player 1, the seat being trained. At the end of every game it records Player 1's **VP**, **resources collected** over the whole game (food, wood, stone, clay, gold), **cards and buildings bought**, **tools** (total value), **people** and **wheat** (fields). It also records training health: rounds played, ε and loss. Each run writes to its own folder, `models/runs/<timestamp>/`:
+Tracking follows the learner, the seat being trained that game. At the end of every game it records the learner's **VP**, **resources collected** over the whole game (food, wood, stone, clay, gold), **cards and buildings bought**, **tools** (total value), **people** and **wheat** (fields). It also records training health: rounds played, ε and loss. Each run writes to its own folder, `models/runs/<timestamp>/`:
 
-- **Console:** one line per 100 games with Player 1's averages, the VP record (best single game in those 100), rounds, ε, loss and games/s.
-- **TensorBoard:** the same averages as live graphs under `player1/*`, `player1_collected/*` and `training/*`. Run `tensorboard --logdir models/runs` in a second terminal and open http://localhost:6006.
-- **Checkpoints:** `games_0010000.pth` every 10k games, `best.pth` whenever Player 1 beats its best VP so far in the run, and `games_<n>_stopped.pth` when you press Ctrl+C.
-- **Trained models (`checkpoints.csv`):** one row per periodic or stopped checkpoint with Player 1's averages over the last 100 games at that point. The console prints a `Checkpoint ...` line on each save, and TensorBoard's **Text** tab shows the run's checkpoint table.
+- **Console:** one line per 100 games with the learner's averages, the VP record (best single game in those 100), rounds, ε, loss and games/s.
+- **TensorBoard:** the same averages as live graphs under `learner/*`, `learner_collected/*` and `training/*`. Run `tensorboard --logdir models/runs` in a second terminal and open http://localhost:6006.
+- **Checkpoints:** `games_0010000.pth` every 10k games, `best.pth` whenever the learner beats its best VP so far in the run, and `games_<n>_stopped.pth` when you press Ctrl+C.
+- **Trained models (`checkpoints.csv`):** one row per periodic or stopped checkpoint with the learner's averages over the last 100 games at that point. The console prints a `Checkpoint ...` line on each save, and TensorBoard's **Text** tab shows the run's checkpoint table.
 
 If the loss shows `nan`, stop training: the network has broken. `get_state()` now raises an error as soon as a NaN appears in the game state, which is how the last one got in.
 

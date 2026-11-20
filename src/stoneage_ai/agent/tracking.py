@@ -1,5 +1,5 @@
 """
-Training progress logging focused on the learner (Player 1).
+Training progress logging focused on the learner (the seat being trained, which rotates every game).
 
 What is tracked, per game, for the learner at the end of the game:
     vp                                   final victory points
@@ -60,7 +60,7 @@ def _nanmean(values) -> float:
 
 class TrainingLogger:
     def __init__(self, run_dir: Path, log_every: int = 100, use_tensorboard: bool = True,
-                 player_label: str = "player1") -> None:
+                 player_label: str = "learner") -> None:
         self.run_dir = Path(run_dir)
         self.run_dir.mkdir(parents=True, exist_ok=True)
         self.log_every = log_every

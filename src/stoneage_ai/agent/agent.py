@@ -27,7 +27,7 @@ MAX_MEMORY = 1000000  # Maximum size of experience replay buffer
 BATCH_SIZE = 512    # Number of experiences sampled per training batch
 LR = 0.00025        # Learning rate for the neural network optimizer (1e-3 made the policy oscillate)
 CHECKPOINT_EVERY = 10_000  # Save a snapshot to models/runs/<run>/ every N games
-LEARNER_SEAT = 0           # Only this seat's (Player 1's) experience is trained on
+NUM_SEATS = 4              # The learner rotates through every seat: seat = game number % 4
 LOG_EVERY = 100            # Games averaged per console line / TensorBoard point
 GAMMA = 0.995              # Discount per learner decision (~150/game): end result keeps ~47% at game start
 N_STEP = 16                # Rewards summed per transition before bootstrapping
@@ -35,7 +35,7 @@ TARGET_SYNC_GAMES = 20     # Copy the online network into the target network eve
 EPS_START = 0.50           # Chance of a random move at the start of training
 EPS_END = 0.05             # ...falling linearly to this
 EPS_DECAY_GAMES = 50_000   # ...over this many games, then staying there
-RANDOM_SEATS = {3}         # Player 4 always plays uniformly random legal moves
+# Each game one of the other three seats plays uniformly random legal moves.
 
 
 class Agent:
@@ -170,9 +170,11 @@ def train(resume=None, tensorboard=True) -> None:
     """
     Self-play training loop that learns from one seat only.
 
-    Players 1-3 choose moves with the same network (epsilon-greedy); Player 4
-    (``RANDOM_SEATS``) always plays random legal moves. Only the learner seat (``LEARNER_SEAT``, Player 1) is
-    trained on; the others are opponents whose experience is discarded.
+    The learner seat rotates every game (game number % NUM_SEATS), so the
+    network learns to play from every seat. One of the other seats, picked at
+    random each game, plays random legal moves; the remaining two use the same
+    network (epsilon-greedy). Only the learner seat is trained on; the others
+    are opponents whose experience is discarded.
 
     Each learner transition is from the learner's point of view:
 
@@ -193,7 +195,7 @@ def train(resume=None, tensorboard=True) -> None:
             network starts from random weights.
         tensorboard: also write TensorBoard logs (if tensorboard is installed).
 
-    Progress goes to TensorBoard and the console (Player 1 averages every
+    Progress goes to TensorBoard and the console (learner averages every
     LOG_EVERY games) and to ``models/runs/<run>/checkpoints.csv`` on each
     checkpoint. Ctrl+C saves a final checkpoint and flushes the logs.
     """
@@ -212,10 +214,17 @@ def train(resume=None, tensorboard=True) -> None:
 
     # Each training run gets its own checkpoint folder, e.g. models/runs/2026-11-18_21-05-33/
     run_dir = f"runs/{datetime.now():%Y-%m-%d_%H-%M-%S}"
-    print(f"Training seat {LEARNER_SEAT + 1}; checkpoints every {CHECKPOINT_EVERY:,} games "
+    print(f"Training a rotating seat; checkpoints every {CHECKPOINT_EVERY:,} games "
           f"-> models/{run_dir}/")
     logger = TrainingLogger(MODELS_DIR / run_dir, log_every=LOG_EVERY, use_tensorboard=tensorboard,
-                            player_label=f"player{LEARNER_SEAT + 1}")
+                            player_label="learner")
+
+    def pick_seats():
+        learner = agent.n_games % NUM_SEATS
+        rand = random.choice([s for s in range(NUM_SEATS) if s != learner])
+        return learner, rand
+
+    learner_seat, random_seat = pick_seats()
     transitions_this_game = 0
 
     # The learner's open decision: {"state", "action", "reward", "phi"} or None
@@ -253,22 +262,22 @@ def train(resume=None, tensorboard=True) -> None:
     try:
         while True:
             seat = game.current_player_idx
-            learner_turn = seat == LEARNER_SEAT
+            learner_turn = seat == learner_seat
             state = agent.get_state(game)
 
             if learner_turn:
-                phi = rewards.potential(game, LEARNER_SEAT)
+                phi = rewards.potential(game, learner_seat)
                 mask = np.packbits(game.get_mask().astype(bool))
                 close(state, mask, False, next_phi=phi)  # learner decides again: previous step ends
 
-            if seat in RANDOM_SEATS:
+            if seat == random_seat:
                 action = int(game.mask_generator.get_random_valid_action(game))
             else:
                 action = agent.get_action(state, game)
-            vp_before = game.players[LEARNER_SEAT].get_vp()
+            vp_before = game.players[learner_seat].get_vp()
             round_before = game.round
             _, done, action = game.play_step(action)
-            vp_after = game.players[LEARNER_SEAT].get_vp()
+            vp_after = game.players[learner_seat].get_vp()
 
             if learner_turn:
                 pending = {"state": state, "action": action, "reward": 0.0, "phi": phi}
@@ -276,19 +285,20 @@ def train(resume=None, tensorboard=True) -> None:
                 # Opponents' moves (and round-end feeding) can change the learner's VP too.
                 pending["reward"] += (vp_after - vp_before) / rewards.VP_SCALE
                 if game.round != round_before:  # this step ended a round: feeding happened
-                    pending["reward"] += rewards.food_penalty(game, LEARNER_SEAT)
+                    pending["reward"] += rewards.food_penalty(game, learner_seat)
 
             if done:
                 final_state = agent.get_state(game)  # ignored by the target when done=True
                 no_moves = np.packbits(np.zeros(game.action_system.NUM_ACTIONS, dtype=bool))
                 close(final_state, no_moves, True,
-                      extra_reward=rewards.terminal_rewards(game)[LEARNER_SEAT])
+                      extra_reward=rewards.terminal_rewards(game)[learner_seat])
 
-                learner_stats = player_summary(game.players[LEARNER_SEAT])  # before reset
+                learner_stats = player_summary(game.players[learner_seat])  # before reset
                 learner_vp = learner_stats["vp"]
                 game_rounds = game.round
                 game.reset()
                 agent.n_games += 1
+                learner_seat, random_seat = pick_seats()  # next game: next seat
                 logger.add_loss(agent.train_long_memory())
                 if agent.n_games % TARGET_SYNC_GAMES == 0:
                     agent.trainer.sync_target()

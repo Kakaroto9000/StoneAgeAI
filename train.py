@@ -46,7 +46,7 @@ def list_models() -> None:
                         for k in ("cards", "buildings", "tools", "people", "wheat", "rounds"))
         print(f"  {name:<{w}} {c['kind']:<9} {games:>9} {_fmt(vp, '.1f'):>6} {cols} "
               f"{c['size_kb']:>5} KB")
-    print("\nPlayer 1 averages over the last games before each save (from the run's checkpoints.csv).")
+    print("\nLearner averages over the last games before each save (from the run's checkpoints.csv).")
 
 
 if __name__ == "__main__":
