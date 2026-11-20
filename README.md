@@ -110,7 +110,8 @@ pip install -r requirements.txt
 # Train the agent (fresh network; checkpoints every 10,000 games in models/runs/<timestamp>/)
 python train.py
 python train.py --resume runs/<run>/games_0010000.pth   # continue from a checkpoint
-python train.py --no-tensorboard                         # CSV + console only
+python train.py --no-tensorboard                         # console only
+python train.py --opponents self random runs/<run>/best.pth   # pick the 3 opponents
 
 # Play against the trained agent in the browser (http://127.0.0.1:8000)
 python play.py

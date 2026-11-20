@@ -11,6 +11,8 @@ Classes:
 
 import torch
 import random
+import json
+import os
 import re
 from pathlib import Path
 from datetime import datetime
@@ -35,7 +37,13 @@ TARGET_SYNC_GAMES = 20     # Copy the online network into the target network eve
 EPS_START = 0.50           # Chance of a random move at the start of training
 EPS_END = 0.05             # ...falling linearly to this
 EPS_DECAY_GAMES = 50_000   # ...over this many games, then staying there
-# Each game one of the other three seats plays uniformly random legal moves.
+# Opponents in the three non-learner seats, shuffled into those seats every game:
+#   "self"   the network being trained (epsilon-greedy; its experience is discarded)
+#   "random" uniformly random legal moves
+#   a path   a frozen saved checkpoint, always playing its best legal move
+SELF, RANDOM = "self", "random"
+DEFAULT_OPPONENTS = (SELF, SELF, RANDOM)
+STOP_FILE = "STOP"         # create models/runs/<run>/STOP to stop training after the current game
 
 
 class Agent:
@@ -166,15 +174,35 @@ class Agent:
             return int(torch.argmax(prediction).item())
 
 
-def train(resume=None, tensorboard=True) -> None:
+def _opponent(spec, num_actions):
+    """SELF / RANDOM, or a GreedyPolicy for a checkpoint path (raises if it can't be used)."""
+    if spec in (SELF, RANDOM):
+        return spec
+    from .policy import GreedyPolicy
+    policy = GreedyPolicy(num_actions=num_actions, model_path=Path(spec))
+    if not policy.is_trained:
+        raise ValueError(f"Opponent checkpoint {spec} can't be used: {policy.load_error}")
+    return policy
+
+
+def _describe(spec) -> str:
+    """Opponent/resume spec as stored in config.json (paths relative to models/ when possible)."""
+    if spec is None or spec in (SELF, RANDOM):
+        return spec
+    try:
+        return Path(spec).resolve().relative_to(MODELS_DIR.resolve()).as_posix()
+    except ValueError:
+        return str(spec)
+
+
+def train(resume=None, tensorboard=True, opponents=DEFAULT_OPPONENTS, run_name=None) -> None:
     """
     Self-play training loop that learns from one seat only.
 
     The learner seat rotates every game (game number % NUM_SEATS), so the
-    network learns to play from every seat. One of the other seats, picked at
-    random each game, plays random legal moves; the remaining two use the same
-    network (epsilon-greedy). Only the learner seat is trained on; the others
-    are opponents whose experience is discarded.
+    network learns to play from every seat. The three ``opponents`` are
+    shuffled into the other seats each game (see DEFAULT_OPPONENTS). Only the
+    learner seat is trained on; the opponents' experience is discarded.
 
     Each learner transition is from the learner's point of view:
 
@@ -194,15 +222,22 @@ def train(resume=None, tensorboard=True) -> None:
         resume: optional checkpoint path to continue from; otherwise the
             network starts from random weights.
         tensorboard: also write TensorBoard logs (if tensorboard is installed).
+        opponents: three opponent specs: "self", "random" or a checkpoint path.
+        run_name: run folder name under models/runs/ (default: the current time).
 
     Progress goes to TensorBoard and the console (learner averages every
     LOG_EVERY games) and to ``models/runs/<run>/checkpoints.csv`` on each
-    checkpoint. Ctrl+C saves a final checkpoint and flushes the logs.
+    checkpoint. Ctrl+C, or creating ``models/runs/<run>/STOP``, saves a final
+    checkpoint and flushes the logs.
     """
     best_vp = -10000  # learner's best VP so far; only used to decide when to save best.pth
 
     game = Game()
     game.reset()
+    opponents = list(opponents)
+    if len(opponents) != NUM_SEATS - 1:
+        raise ValueError(f"need {NUM_SEATS - 1} opponents, got {len(opponents)}")
+    opponent_players = [_opponent(o, game.action_system.NUM_ACTIONS) for o in opponents]
     agent = Agent(num_actions=game.action_system.NUM_ACTIONS, model_path=resume)
     if resume is not None:
         # Continue the game count (exploration schedule, checkpoint names) from
@@ -213,18 +248,26 @@ def train(resume=None, tensorboard=True) -> None:
             print(f"Continuing from game {agent.n_games:,} (epsilon {agent.exploration_rate():.2f})")
 
     # Each training run gets its own checkpoint folder, e.g. models/runs/2026-11-18_21-05-33/
-    run_dir = f"runs/{datetime.now():%Y-%m-%d_%H-%M-%S}"
-    print(f"Training a rotating seat; checkpoints every {CHECKPOINT_EVERY:,} games "
-          f"-> models/{run_dir}/")
+    run_dir = f"runs/{run_name or f'{datetime.now():%Y-%m-%d_%H-%M-%S}'}"
+    print(f"Training a rotating seat against {', '.join(map(_describe, opponents))}; "
+          f"checkpoints every {CHECKPOINT_EVERY:,} games -> models/{run_dir}/")
     logger = TrainingLogger(MODELS_DIR / run_dir, log_every=LOG_EVERY, use_tensorboard=tensorboard,
                             player_label="learner")
+    stop_file = MODELS_DIR / run_dir / STOP_FILE
+    config_file = MODELS_DIR / run_dir / "config.json"
+    config = {"started_at": datetime.now().isoformat(timespec="seconds"), "pid": os.getpid(),
+              "resume": _describe(resume), "start_games": agent.n_games,
+              "opponents": [_describe(o) for o in opponents], "tensorboard": tensorboard,
+              "lr": LR, "finished_at": None}
+    config_file.write_text(json.dumps(config, indent=2))
 
     def pick_seats():
+        """(learner seat, {seat: opponent}) for the next game."""
         learner = agent.n_games % NUM_SEATS
-        rand = random.choice([s for s in range(NUM_SEATS) if s != learner])
-        return learner, rand
+        others = [s for s in range(NUM_SEATS) if s != learner]
+        return learner, dict(zip(others, random.sample(opponent_players, len(opponent_players))))
 
-    learner_seat, random_seat = pick_seats()
+    learner_seat, seat_players = pick_seats()
     transitions_this_game = 0
 
     # The learner's open decision: {"state", "action", "reward", "phi"} or None
@@ -270,10 +313,13 @@ def train(resume=None, tensorboard=True) -> None:
                 mask = np.packbits(game.get_mask().astype(bool))
                 close(state, mask, False, next_phi=phi)  # learner decides again: previous step ends
 
-            if seat == random_seat:
+            player = seat_players.get(seat, SELF)  # the learner seat isn't in seat_players
+            if player == SELF:
+                action = agent.get_action(state, game)
+            elif player == RANDOM:
                 action = int(game.mask_generator.get_random_valid_action(game))
             else:
-                action = agent.get_action(state, game)
+                action = player.choose(game)  # frozen checkpoint
             vp_before = game.players[learner_seat].get_vp()
             round_before = game.round
             _, done, action = game.play_step(action)
@@ -298,7 +344,7 @@ def train(resume=None, tensorboard=True) -> None:
                 game_rounds = game.round
                 game.reset()
                 agent.n_games += 1
-                learner_seat, random_seat = pick_seats()  # next game: next seat
+                learner_seat, seat_players = pick_seats()  # next game: next seat, reshuffled opponents
                 logger.add_loss(agent.train_long_memory())
                 if agent.n_games % TARGET_SYNC_GAMES == 0:
                     agent.trainer.sync_target()
@@ -314,6 +360,8 @@ def train(resume=None, tensorboard=True) -> None:
                 if agent.n_games % CHECKPOINT_EVERY == 0:
                     path = agent.model.save(file_name=f"{run_dir}/games_{agent.n_games:07d}.pth")
                     logger.log_checkpoint(path, agent.n_games)
+                if stop_file.exists():  # stop requested (e.g. from the web UI)
+                    raise KeyboardInterrupt
 
     except KeyboardInterrupt:
         path = agent.model.save(file_name=f"{run_dir}/games_{agent.n_games:07d}_stopped.pth")
@@ -321,6 +369,10 @@ def train(resume=None, tensorboard=True) -> None:
         logger.log_checkpoint(path, agent.n_games)
     finally:
         logger.close()
+        stop_file.unlink(missing_ok=True)
+        config["finished_at"] = datetime.now().isoformat(timespec="seconds")
+        config["end_games"] = agent.n_games
+        config_file.write_text(json.dumps(config, indent=2))
 
 if __name__ == '__main__':
     # Run the training loop when script is executed directly

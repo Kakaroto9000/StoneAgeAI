@@ -15,11 +15,13 @@ console line is printed.
 
 Files live in the run folder, e.g. ``models/runs/2026-11-18_21-05-33/``:
     checkpoints.csv              one row per saved checkpoint, with the recent averages at that point
+    progress.jsonl               one JSON line per window (the averages; read by the web UI)
     events.out.tfevents.*        TensorBoard (view with: tensorboard --logdir models/runs);
                                  the "checkpoints" table is under the Text tab
 """
 
 import csv
+import json
 import time
 from collections import deque
 from datetime import datetime
@@ -105,7 +107,7 @@ class TrainingLogger:
         stats["loss"] = _nanmean(r["loss"] for r in rows)
         return stats
 
-    def _flush_window(self) -> None:
+    def _flush_window(self, partial: bool = False) -> None:
         rows, self._rows = self._rows, []
 
         game = rows[-1]["game"]
@@ -113,6 +115,12 @@ class TrainingLogger:
         self._window_start = time.perf_counter()
         s = self._averages(rows)
         games_per_sec = len(rows) / elapsed if elapsed > 0 else 0.0
+
+        point = {"game": game, "games_per_sec": round(games_per_sec, 3),
+                 **{k: (None if v != v else round(v, 4)) for k, v in s.items()}}  # NaN -> null
+        if not partial:  # a few leftover games at the end would be a misleading chart point
+            with open(self.run_dir / "progress.jsonl", "a") as f:
+                f.write(json.dumps(point) + "\n")
 
         if self.tb is not None:
             p = self.label
@@ -173,7 +181,7 @@ class TrainingLogger:
 
     def close(self) -> None:
         if self._rows:
-            self._flush_window()
+            self._flush_window(partial=True)
         if self.tb is not None:
             self.tb.close()
 

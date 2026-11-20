@@ -3,6 +3,7 @@
 Usage:
     python train.py                                   # fresh network
     python train.py --resume runs/<run>/games_0010000.pth   # continue a run
+    python train.py --opponents self random runs/<run>/best.pth   # choose the 3 opponents
     python train.py --list-models                     # every saved model, grouped by run
     tensorboard --logdir models/runs                  # live graphs (http://localhost:6006)
 """
@@ -54,6 +55,11 @@ if __name__ == "__main__":
     parser.add_argument("--resume", help="checkpoint in models/ (or a path) to continue from")
     parser.add_argument("--no-tensorboard", action="store_true",
                         help="skip TensorBoard; only print the console summary")
+    parser.add_argument("--opponents", nargs=3, metavar="OPPONENT",
+                        default=["self", "self", "random"],
+                        help="the 3 opponents: 'self' (the network being trained), 'random', "
+                             "or a checkpoint in models/ (or a path); default: self self random")
+    parser.add_argument("--run-name", help="run folder name under models/runs/ (default: current time)")
     parser.add_argument("--list-models", action="store_true",
                         help="list all saved models (grouped by run) with their stats, then exit")
     args = parser.parse_args()
@@ -67,4 +73,7 @@ if __name__ == "__main__":
     resume = None
     if args.resume:
         resume = Path(args.resume) if Path(args.resume).exists() else MODELS_DIR / args.resume
-    train(resume=resume, tensorboard=not args.no_tensorboard)
+    opponents = [o if o in ("self", "random") or Path(o).exists() else MODELS_DIR / o
+                 for o in args.opponents]
+    train(resume=resume, tensorboard=not args.no_tensorboard, opponents=opponents,
+          run_name=args.run_name)
